@@ -22,9 +22,10 @@
         #waveform { width: 100%; height: 200px; background: #1a1a1a; }
         .footer-bar { 
             display: flex; 
-            justify-content: center; 
+            justify-content: space-between; 
             padding: 10px; 
         }
+        #dateDisplay { color: white; }
         #countdownDisplay { color: red; font-weight: bold; font-size: 20px; }
         .dot-alert { 
             display: none; 
@@ -68,6 +69,27 @@
             margin: 0 5px; 
             text-align: center; 
         }
+        #loadingIndicator { 
+            display: none; 
+            text-align: center; 
+            margin: 10px 0; 
+        }
+        #loadingIndicator .dot { 
+            display: inline-block; 
+            width: 8px; 
+            height: 8px; 
+            background: cyan; 
+            border-radius: 50%; 
+            margin: 0 2px; 
+            animation: blink 1.4s infinite both; 
+        }
+        #loadingIndicator .dot:nth-child(2) { animation-delay: 0.2s; }
+        #loadingIndicator .dot:nth-child(3) { animation-delay: 0.4s; }
+        #loadingIndicator .dot:nth-child(4) { animation-delay: 0.6s; }
+        @keyframes blink {
+            0%, 80%, 100% { opacity: 0; }
+            40% { opacity: 1; }
+        }
         #generatedImage { max-width: 100%; display: none; margin-top: 10px; }
         .past-entries { 
             text-align: center; 
@@ -105,6 +127,7 @@
         <h1>Describe your perfect day.</h1>
         <canvas id="waveform"></canvas>
         <div class="footer-bar">
+            <div id="dateDisplay"></div>
             <div id="countdownDisplay">00:30:00</div>
         </div>
         <div class="dot-alert" id="redDot"></div>
@@ -123,6 +146,9 @@
             <button class="button" id="redo">Redo</button>
             <button class="button" id="generate">Generate Image</button>
             <button class="button" id="saveImage">Save</button>
+        </div>
+        <div id="loadingIndicator">
+            <div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div>
         </div>
         <div class="past-entries">
             Past Entries
@@ -206,126 +232,15 @@
             }
         }
 
+        function updateDateTime() {
+            const now = new Date();
+            document.getElementById("dateDisplay").textContent = now.toLocaleString();
+        }
+        updateDateTime();
+        setInterval(updateDateTime, 1000);
+
         const startVoiceBtn = document.getElementById("startVoice");
         const redoBtn = document.getElementById("redo");
         const activityInput = document.getElementById("activityInput");
         const countdownEl = document.getElementById("countdownDisplay");
-        const generateBtn = document.getElementById("generate");
-        const styleSelect = document.getElementById("styleSelect");
-        const generatedImage = document.getElementById("generatedImage");
-
-        function updateCountdown() {
-            const sec = String(timeLeft).padStart(2, '0');
-            countdownEl.textContent = `00:${sec}:00`;
-        }
-
-        function startCountdown() {
-            timeLeft = 30;
-            updateCountdown();
-            const countdownInterval = setInterval(() => {
-                timeLeft--;
-                updateCountdown();
-                if (timeLeft <= 10) document.getElementById("redDot").style.display = "block";
-                if (timeLeft <= 0) stopRecording(countdownInterval);
-            }, 1000);
-            return countdownInterval;
-        }
-
-        function stopRecording(countdownInterval) {
-            if (recognition) recognition.stop();
-            clearInterval(countdownInterval);
-            isRecording = false;
-            countdownEl.textContent = "00:30:00";
-            document.getElementById("redDot").style.display = "none";
-            startVoiceBtn.textContent = "Start Voice";
-            if (animationFrameId) cancelAnimationFrame(animationFrameId);
-            if (audioContext) audioContext.suspend();
-        }
-
-        async function startRecording() {
-            const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-            if (!SpeechRecognition) {
-                alert("Voice recording not supported. Use Safari 14.1+ or Chrome.");
-                return;
-            }
-
-            try {
-                if (!audioContext) await setupAudio();
-                else if (audioContext.state === "suspended") await audioContext.resume();
-
-                recognition = new SpeechRecognition();
-                recognition.lang = "en-US";
-                recognition.continuous = false;
-                recognition.interimResults = true;
-
-                let finalTranscript = activityInput.value;
-                recognition.onresult = (event) => {
-                    finalTranscript = Array.from(event.results)
-                        .map(result => result[0].transcript)
-                        .join(' ');
-                    activityInput.value = finalTranscript.trim();
-                    activityInput.scrollTop = activityInput.scrollHeight;
-                };
-
-                recognition.onerror = (e) => {
-                    console.error("Speech error:", e.error);
-                    alert(`Speech recognition error: ${e.error}. Check permissions or try again.`);
-                    stopRecording();
-                };
-
-                recognition.onend = () => {
-                    if (isRecording) setTimeout(startRecording, 100);
-                };
-
-                recognition.start();
-                isRecording = true;
-                startVoiceBtn.textContent = "Stop Voice";
-                const countdownInterval = startCountdown();
-            } catch (err) {
-                console.error("Recording setup error:", err);
-                alert("Failed to start recording. Ensure microphone access is allowed.");
-            }
-        }
-
-        startVoiceBtn.addEventListener("click", async () => {
-            if (isRecording) stopRecording();
-            else await startRecording();
-        });
-
-        redoBtn.addEventListener("click", async () => {
-            if (!isRecording) {
-                activityInput.value = "";
-                await startRecording();
-            }
-        });
-
-        generateBtn.addEventListener("click", async () => {
-            const moodText = activityInput.value;
-            const style = styleSelect.value;
-            if (!moodText) {
-                alert("Please enter or record a mood first!");
-                return;
-            }
-
-            const entry = {
-                text: moodText,
-                style: style,
-                timestamp: new Date().toLocaleString()
-            };
-            userData.push(entry);
-            localStorage.setItem('moodEntries', JSON.stringify(userData));
-            
-            const logEntry = document.createElement('p');
-            logEntry.textContent = `${entry.timestamp}: ${entry.text} (${entry.style})`;
-            logHistory.appendChild(logEntry);
-
-            if (style !== "none") {
-                generatedImage.src = "https://via.placeholder.com/400?text=Generated+Image";
-                generatedImage.style.display = "block";
-            }
-        });
-
-        drawGrid();
-    </script>
-</body>
-</html>
+        const generateBtn = document.getElementBy
