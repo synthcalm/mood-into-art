@@ -186,6 +186,33 @@
   }
   setInterval(updateDateTime, 1000);
   updateDateTime();
+
+  document.getElementById("redo").addEventListener("click", () => {
+    document.getElementById("activityInput").value = "";
+  });
+
+  // Add a dummy waveform scope to make it visually dynamic
+  const waveform = document.getElementById("waveform");
+  const ctx = waveform.getContext("2d");
+  let phase = 0;
+  function drawWaveform() {
+    waveform.width = waveform.clientWidth;
+    waveform.height = waveform.clientHeight;
+    ctx.clearRect(0, 0, waveform.width, waveform.height);
+    ctx.strokeStyle = '#00FF00';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    const amplitude = waveform.height / 4;
+    const frequency = 0.1;
+    for (let x = 0; x < waveform.width; x++) {
+      const y = waveform.height / 2 + amplitude * Math.sin((x + phase) * frequency);
+      ctx.lineTo(x, y);
+    }
+    ctx.stroke();
+    phase += 2;
+    requestAnimationFrame(drawWaveform);
+  }
+  drawWaveform();
 </script>
 </body>
 </html>
