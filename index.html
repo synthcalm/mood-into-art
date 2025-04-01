@@ -29,7 +29,7 @@
             position: absolute;
             top: 0;
             left: 0;
-            z-index: 2;
+            z-index: 1; /* Waveform below grid */
         }
         .grid-overlay {
             position: absolute;
@@ -37,7 +37,7 @@
             left: 0;
             width: 100%;
             height: 100%;
-            z-index: 1;
+            z-index: 2; /* Grid above waveform */
             pointer-events: none;
         }
         .footer-bar {
@@ -187,21 +187,25 @@
             const w = grid.width;
             const h = grid.height;
             gridCtx.clearRect(0, 0, w, h);
-            gridCtx.strokeStyle = 'rgba(0,255,255,0.2)';
-            gridCtx.lineWidth = 0.5;
-            for (let i = 0; i < w; i += w / 12) {
+            gridCtx.strokeStyle = 'rgba(0, 255, 255, 0.3)'; // Slightly transparent cyan
+            gridCtx.lineWidth = 0.3; // Thinner lines
+            // Vertical lines
+            for (let i = 0; i <= w; i += w / 20) { // More divisions for finer grid
                 gridCtx.beginPath();
                 gridCtx.moveTo(i, 0);
                 gridCtx.lineTo(i, h);
                 gridCtx.stroke();
             }
-            for (let j = 0; j < h; j += h / 10) {
+            // Horizontal lines
+            for (let j = 0; j <= h; j += h / 12) { // More divisions for finer grid
                 gridCtx.beginPath();
                 gridCtx.moveTo(0, j);
                 gridCtx.lineTo(w, j);
                 gridCtx.stroke();
             }
-            gridCtx.strokeStyle = 'rgba(0,255,255,0.4)';
+            // Center line (slightly bolder)
+            gridCtx.strokeStyle = 'rgba(0, 255, 255, 0.5)';
+            gridCtx.lineWidth = 0.5;
             gridCtx.beginPath();
             gridCtx.moveTo(0, h / 2);
             gridCtx.lineTo(w, h / 2);
@@ -232,6 +236,7 @@
             waveformCtx.clearRect(0, 0, waveform.width, waveform.height);
             analyser.getByteTimeDomainData(dataArray);
             waveformCtx.strokeStyle = 'cyan';
+            waveformCtx.lineWidth = 1;
             waveformCtx.beginPath();
             let sliceWidth = waveform.width / dataArray.length;
             let x = 0;
