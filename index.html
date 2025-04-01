@@ -1,8 +1,8 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>MIA Test</title>
   <style>
     body {
@@ -15,6 +15,7 @@
       justify-content: center;
       min-height: 100vh;
       padding: 20px;
+      text-align: center;
     }
     textarea, select, button {
       margin-top: 10px;
@@ -31,6 +32,12 @@
       max-width: 400px;
       display: none;
     }
+    #loading {
+      margin-top: 10px;
+      font-size: 14px;
+      color: #00FF00;
+      display: none;
+    }
   </style>
 </head>
 <body>
@@ -42,24 +49,32 @@
     <option value="none">No Image</option>
   </select>
   <button id="generate">Generate Image</button>
+  <div id="loading">⏳ Generating your image, please wait...</div>
   <img id="output" />
 
   <script>
     document.addEventListener("DOMContentLoaded", () => {
-      console.log("JavaScript is running ✅");
+      console.log("✅ JavaScript loaded");
       const generateBtn = document.getElementById("generate");
       const activityInput = document.getElementById("activityInput");
       const styleSelect = document.getElementById("styleSelect");
       const output = document.getElementById("output");
+      const loading = document.getElementById("loading");
 
       generateBtn.addEventListener("click", async () => {
         const text = activityInput.value.trim();
         const style = styleSelect.value;
-        if (!text || style === "none") return alert("Please enter a description and select a style.");
+        if (!text || style === "none") {
+          alert("Please enter a description and select a style.");
+          return;
+        }
 
-        const prompt = style === "photo" ? `Hyper-realistic photo of: ${text}` :
-                       style === "anime" ? `Japanese anime style of: ${text}` :
-                       text;
+        const prompt = style === "photo" ? `Hyper-realistic photo of: ${text}`
+                     : style === "anime" ? `Japanese anime style of: ${text}`
+                     : text;
+
+        loading.style.display = "block";
+        output.style.display = "none";
 
         try {
           const res = await fetch("https://mood-into-art-backend.onrender.com/generate", {
@@ -67,7 +82,10 @@
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ prompt })
           });
+
           const data = await res.json();
+          console.log("Response:", data);
+
           if (data.image) {
             output.src = data.image;
             output.style.display = "block";
@@ -75,8 +93,10 @@
             alert("Image generation failed.");
           }
         } catch (err) {
-          console.error("Request failed:", err);
-          alert("There was an error generating the image.");
+          console.error("Error generating image:", err);
+          alert("There was an error generating the image. See console for details.");
+        } finally {
+          loading.style.display = "none";
         }
       });
     });
