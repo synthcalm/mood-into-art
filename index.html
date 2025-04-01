@@ -157,7 +157,7 @@
   <div id="logHistory"></div>
 </div>
 <script>
-  // Draw initial grid on waveform canvas
+  // Grid
   const waveformCanvas = document.getElementById('waveform');
   const ctx = waveformCanvas.getContext('2d');
   function drawGrid() {
@@ -167,68 +167,94 @@
     const h = waveformCanvas.height;
     ctx.clearRect(0, 0, w, h);
     ctx.strokeStyle = 'rgba(0, 255, 0, 0.6)';
-    ctx.lineWidth = 1;
-    for (let i = 0; i <= w; i += w / 10) {
-      ctx.beginPath();
-      ctx.moveTo(i, 0);
-      ctx.lineTo(i, h);
-      ctx.stroke();
+    ctx.lineWidth = 1.2;
+    for (let i = 0; i <= w; i += w / 8) {
+      ctx.beginPath(); ctx.moveTo(i, 0); ctx.lineTo(i, h); ctx.stroke();
     }
-    for (let j = 0; j <= h; j += h / 6) {
-      ctx.beginPath();
-      ctx.moveTo(0, j);
-      ctx.lineTo(w, j);
-      ctx.stroke();
+    for (let j = 0; j <= h; j += h / 4) {
+      ctx.beginPath(); ctx.moveTo(0, j); ctx.lineTo(w, j); ctx.stroke();
     }
-    ctx.strokeStyle = 'rgba(0, 255, 0, 0.9)';
-    ctx.beginPath();
-    ctx.moveTo(0, h / 2);
-    ctx.lineTo(w, h / 2);
-    ctx.stroke();
+    ctx.strokeStyle = 'rgba(0, 255, 0, 1)';
+    ctx.beginPath(); ctx.moveTo(0, h / 2); ctx.lineTo(w, h / 2); ctx.stroke();
   }
   window.addEventListener('load', drawGrid);
   window.addEventListener('resize', drawGrid);
 
-  // Set current date and time
+  // Date/Time
   function updateDateTime() {
-    const now = new Date();
-    document.getElementById('dateDisplay').textContent = now.toLocaleString();
+    document.getElementById('dateDisplay').textContent = new Date().toLocaleString();
   }
   setInterval(updateDateTime, 1000);
   updateDateTime();
 
-  // Redo button clears text
+  // Redo
   document.getElementById('redo').addEventListener('click', () => {
     document.getElementById('activityInput').value = '';
   });
 
-  // Generate image
+  // Whisper voice recorder (iOS compatible) using file upload method
+  let mediaRecorder;
+  let audioChunks = [];
+
+  document.getElementById('startVoice').addEventListener('click', async function () {
+    const btn = this;
+    if (btn.classList.contains('recording')) {
+      mediaRecorder.stop();
+      btn.textContent = 'Start Voice';
+      btn.classList.remove('recording');
+    } else {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      mediaRecorder = new MediaRecorder(stream);
+      mediaRecorder.start();
+      audioChunks = [];
+      btn.textContent = 'Stop Voice';
+      btn.classList.add('recording');
+
+      mediaRecorder.addEventListener('dataavailable', event => {
+        audioChunks.push(event.data);
+      });
+
+      mediaRecorder.addEventListener('stop', async () => {
+        const blob = new Blob(audioChunks, { type: 'audio/webm' });
+        const formData = new FormData();
+        formData.append('file', blob, 'recording.webm');
+        formData.append('model', 'whisper-1');
+
+        const response = await fetch("https://api.openai.com/v1/audio/transcriptions", {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer YOUR_API_KEY`
+          },
+          body: formData
+        });
+        const data = await response.json();
+        document.getElementById('activityInput').value += data.text;
+      });
+    }
+  });
+
+  // Generate
   document.getElementById('generate').addEventListener('click', async () => {
     const input = document.getElementById('activityInput').value.trim();
     const style = document.getElementById('styleSelect').value;
     const loading = document.getElementById('loadingIndicator');
     const output = document.getElementById('generatedImage');
     const log = document.getElementById('logHistory');
-
     if (!input || style === 'none') {
       alert('Please enter a mood description and choose a style.');
       return;
     }
-
     const prompt = style === 'photo' ? `Hyper-realistic photo of ${input}` :
                     style === 'anime' ? `Japanese anime illustration of ${input}` :
                     `${input} in the style of ${style}`;
-
     loading.style.display = 'flex';
     output.style.display = 'none';
-
     try {
       const response = await fetch('https://mood-into-art-backend.onrender.com/generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ prompt })
       });
-
       const data = await response.json();
       if (data.image) {
         output.src = data.image;
