@@ -38,6 +38,14 @@
       margin-bottom: 10px;
     }
 
+    .footer-bar {
+      display: flex;
+      justify-content: space-between;
+      width: 100%;
+      font-size: 10pt;
+      margin-bottom: 10px;
+    }
+
     .dot-alert {
       width: 10px;
       height: 10px;
@@ -45,25 +53,11 @@
       background-color: red;
       animation: blink 1s infinite;
       display: none;
-      margin-bottom: 10px;
     }
 
     @keyframes blink {
       0%, 100% { opacity: 1; }
       50% { opacity: 0; }
-    }
-
-    .footer-bar {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      width: 100%;
-      font-size: 10pt;
-      font-family: 'Share Tech Mono', monospace;
-      color: #00FF00;
-      padding: 0 5px;
-      margin-top: -10px;
-      margin-bottom: 10px;
     }
 
     textarea, select {
@@ -73,11 +67,7 @@
       border: 2px solid #00FF00;
       color: #00FF00;
       margin-bottom: 10px;
-      resize: vertical;
-    }
-
-    textarea {
-      overflow-y: auto;
+      font-family: 'Share Tech Mono', monospace;
     }
 
     .button-group {
@@ -94,7 +84,6 @@
       color: #00FF00;
       padding: 10px;
       cursor: pointer;
-      font-family: 'Share Tech Mono', monospace;
     }
 
     .button.recording {
@@ -136,7 +125,7 @@
   <canvas id="waveform"></canvas>
   <div class="footer-bar">
     <div id="dateDisplay"></div>
-    <div id="countdownDisplay" class="clock">00:60:00</div>
+    <div id="countdownDisplay">00:60:00</div>
   </div>
   <div class="dot-alert" id="redDot"></div>
   <textarea id="activityInput" rows="4" placeholder="Describe your mood..."></textarea>
@@ -157,7 +146,7 @@
   </select>
   <div class="button-group">
     <button class="button" id="startVoice">Start Voice</button>
-    <button class="button" id="redo">Redo</button>
+    <button class="button" onclick="location.reload()">Redo</button>
     <button class="button" id="generate">Generate Image</button>
     <button class="button" id="saveImage">Save</button>
   </div>
@@ -171,29 +160,22 @@
 </div>
 
 <script>
-// Set date
-const today = new Date();
-document.getElementById("dateDisplay").textContent = today.toISOString().slice(0, 10);
-
-// Draw waveform grid
+// Simple waveform grid
 const canvas = document.getElementById("waveform");
+canvas.width = 460;
+canvas.height = 80;
 const ctx = canvas.getContext("2d");
-canvas.width = canvas.clientWidth;
-canvas.height = canvas.clientHeight;
-function drawGrid() {
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
-  ctx.strokeStyle = "#00FF00";
-  ctx.lineWidth = 0.8;
-  for (let x = 0; x < canvas.width; x += 20) {
-    ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, canvas.height); ctx.stroke();
-  }
-  for (let y = 0; y < canvas.height; y += 20) {
-    ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(canvas.width, y); ctx.stroke();
-  }
+ctx.strokeStyle = "#00FF00";
+ctx.lineWidth = 0.5;
+for (let x = 0; x <= canvas.width; x += 20) {
+  ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, canvas.height); ctx.stroke();
 }
-window.addEventListener('load', drawGrid);
+for (let y = 0; y <= canvas.height; y += 20) {
+  ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(canvas.width, y); ctx.stroke();
+}
 
-// Voice and countdown logic
+document.getElementById("dateDisplay").textContent = new Date().toISOString().slice(0, 10);
+
 const startVoiceBtn = document.getElementById("startVoice");
 const activityInput = document.getElementById("activityInput");
 const countdownEl = document.getElementById("countdownDisplay");
@@ -202,95 +184,70 @@ const styleSelect = document.getElementById("styleSelect");
 const generatedImage = document.getElementById("generatedImage");
 const loadingIndicator = document.getElementById("loadingIndicator");
 
-let recognition, countdownInterval, isRecording = false, timeLeft = 60;
+let recognition, isRecording = false, timeLeft = 60, countdownInterval;
 
 function updateCountdown() {
-  const sec = String(timeLeft).padStart(2, '0');
-  countdownEl.textContent = `00:${sec}:00`;
+  countdownEl.textContent = `00:${String(timeLeft).padStart(2, '0')}:00`;
 }
 function startCountdown() {
-  timeLeft = 60;
-  updateCountdown();
+  timeLeft = 60; updateCountdown();
   countdownInterval = setInterval(() => {
     timeLeft--;
     updateCountdown();
-    if (timeLeft <= 10) document.getElementById("redDot").style.display = "block";
     if (timeLeft <= 0) stopRecording();
   }, 1000);
 }
 function stopCountdown() {
   clearInterval(countdownInterval);
   countdownEl.textContent = "00:60:00";
-  document.getElementById("redDot").style.display = "none";
+}
+function startRecording() {
+  if (!('webkitSpeechRecognition' in window || 'SpeechRecognition' in window)) return alert("Speech not supported");
+  recognition = new (window.SpeechRecognition || window.webkitSpeechRecognition)();
+  recognition.lang = "en-US";
+  recognition.continuous = true;
+  recognition.onresult = e => {
+    activityInput.value = [...e.results].map(r => r[0].transcript).join(' ');
+  };
+  recognition.start();
+  isRecording = true;
+  startVoiceBtn.textContent = "Stop Voice";
+  startCountdown();
 }
 function stopRecording() {
   if (recognition) recognition.stop();
   isRecording = false;
   stopCountdown();
   startVoiceBtn.textContent = "Start Voice";
-  startVoiceBtn.classList.remove("recording");
 }
-function startRecording() {
-  if (!('webkitSpeechRecognition' in window || 'SpeechRecognition' in window)) {
-    alert("Voice recording not supported on this browser.");
-    return;
-  }
-  recognition = new (window.SpeechRecognition || window.webkitSpeechRecognition)();
-  recognition.lang = "en-US";
-  recognition.continuous = true;
-  recognition.interimResults = true;
-  let finalTranscript = activityInput.value;
-  recognition.onresult = (event) => {
-    for (let i = event.resultIndex; i < event.results.length; i++) {
-      finalTranscript += ' ' + event.results[i][0].transcript;
-    }
-    activityInput.value = finalTranscript.trim();
-    activityInput.scrollTop = activityInput.scrollHeight;
-  };
-  recognition.onerror = (e) => console.error("Speech error:", e);
-  recognition.onend = () => stopRecording();
-  recognition.start();
-  isRecording = true;
-  startVoiceBtn.textContent = "Stop Voice";
-  startVoiceBtn.classList.add("recording");
-  startCountdown();
-}
-startVoiceBtn.addEventListener("click", () => {
-  isRecording ? stopRecording() : startRecording();
-});
+startVoiceBtn.onclick = () => isRecording ? stopRecording() : startRecording();
 
-generateBtn.addEventListener("click", async () => {
-  const text = activityInput.value.trim();
+generateBtn.onclick = async () => {
+  const prompt = activityInput.value.trim();
   const style = styleSelect.value;
-  if (!text || style === "none") return;
-
-  let prompt = style === "photo" ? `Hyper-realistic photo of: ${text}` :
-               style === "anime" ? `Japanese anime style of: ${text}` :
-               `Painting in the style of ${style} of: ${text}`;
-
+  if (!prompt || style === "none") return;
+  const fullPrompt = style === "photo" ? `Hyper-realistic photo of ${prompt}` :
+                     style === "anime" ? `Japanese anime style of ${prompt}` :
+                     `Painting in the style of ${style} of ${prompt}`;
   loadingIndicator.style.display = "flex";
   generatedImage.style.display = "none";
-
   try {
-    const response = await fetch("/api/generate", { // Use your backend route
+    const res = await fetch("/api/generate", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ prompt })
+      body: JSON.stringify({ prompt: fullPrompt })
     });
-    const data = await response.json();
-    if (data?.url) {
+    const data = await res.json();
+    if (data.url) {
       generatedImage.src = data.url;
       generatedImage.style.display = "block";
-    } else {
-      alert("Image generation failed.");
-    }
-  } catch (err) {
-    console.error("Image generation error:", err);
-    alert("Error generating image.");
+    } else alert("Image failed");
+  } catch {
+    alert("Error generating image");
   } finally {
     loadingIndicator.style.display = "none";
   }
-});
+};
 </script>
 </body>
 </html>
