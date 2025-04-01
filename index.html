@@ -12,19 +12,43 @@
             border: 2px solid cyan;
             border-radius: 10px;
             padding: 15px;
+            background: black;
+            text-align: center;
         }
-        #waveform { width: 100%; height: 200px; background: #1a1a1a; }
+        .waveform-container {
+            position: relative;
+            width: 100%;
+            height: 200px;
+            margin-bottom: 10px;
+            border-top: 1px solid cyan;
+            border-bottom: 1px solid cyan;
+        }
+        #waveform { 
+            width: 100%; 
+            height: 100%; 
+            background: black;
+            position: absolute;
+            top: 0;
+            left: 0;
+            z-index: 2;
+        }
+        .grid-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 1;
+        }
         .footer-bar {
             display: flex;
             justify-content: space-between;
             padding: 10px;
+            background: black;
         }
         #dateDisplay, #countdownDisplay {
             color: white;
-            font-size: 10pt; /* Adjusted to match */
-        }
-        #countdownDisplay {
-            color: white; /* Changed to white */
+            font-size: 7pt;
         }
         .dot-alert {
             display: none;
@@ -38,36 +62,41 @@
             transform: translateX(-50%);
         }
         #activityInput {
-            width: 100%;
-            margin: 10px 0;
+            width: 90%;
+            margin: 10px auto;
             padding: 5px;
-            background: black; /* Changed to black */
+            background: black;
             color: cyan;
-            border: 1px solid cyan;
+            border: none;
+            text-align: center;
+            display: block;
         }
         #styleSelect {
-            width: 100%;
+            width: 90%;
             padding: 8px;
-            margin: 10px 0;
-            background: black; /* Changed to black */
-            color: white;
+            margin: 10px auto;
+            background: black;
+            color: cyan;
             border: 1px solid cyan;
-            text-align: center; /* Centered text */
+            text-align: center;
+            display: block;
         }
         .button-group {
             display: flex;
             justify-content: space-around;
             margin: 10px 0;
+            background: black;
         }
         .button {
             padding: 8px 16px;
-            background: black; /* Changed to black */
-            color: black; /* Changed to black */
+            background: black;
+            color: cyan;
             border: 1px solid cyan;
             border-radius: 5px;
             flex: 1;
             margin: 0 5px;
             text-align: center;
+            cursor: pointer;
         }
         #loadingIndicator {
             display: none;
@@ -91,29 +120,32 @@
             40% { opacity: 1; }
         }
         #generatedImage { 
-            max-width: 400px; /* Adjusted max-width */
+            max-width: 400px;
             max-height: 400px;
             display: none;
-            margin: 10px auto; /* Centered image */
+            margin: 10px auto;
         }
         #moodEntry {
             margin-top: 20px;
             padding: 10px;
-            background: black; /* Changed to black */
+            background: black;
             border: 1px solid cyan;
             border-radius: 5px;
             text-align: center;
         }
         #moodEntry h3 {
             margin-top: 0;
-            color: white;
+            color: cyan;
         }
         #logHistory { color: white; }
     </style>
 </head>
 <body>
     <div class="container">
-        <canvas id="waveform"></canvas>
+        <div class="waveform-container">
+            <canvas id="waveform"></canvas>
+            <canvas id="grid" class="grid-overlay"></canvas>
+        </div>
         <div class="footer-bar">
             <div id="dateDisplay"></div>
             <div id="countdownDisplay">00:30:00</div>
@@ -146,7 +178,355 @@
     </div>
 
     <script>
-        // ... (JavaScript code remains the same) ...
+        // DOM Elements
+        const startVoiceBtn = document.getElementById('startVoice');
+        const redoBtn = document.getElementById('redo');
+        const generateBtn = document.getElementById('generate');
+        const saveImageBtn = document.getElementById('saveImage');
+        const activityInput = document.getElementById('activityInput');
+        const styleSelect = document.getElementById('styleSelect');
+        const loadingIndicator = document.getElementById('loadingIndicator');
+        const generatedImage = document.getElementById('generatedImage');
+        const logHistory = document.getElementById('logHistory');
+        const dateDisplay = document.getElementById('dateDisplay');
+        const countdownDisplay = document.getElementById('countdownDisplay');
+        const waveformCanvas = document.getElementById('waveform');
+        const gridCanvas = document.getElementById('grid');
+        const redDot = document.getElementById('redDot');
+        
+        // Context for waveform drawing and grid
+        const waveformCtx = waveformCanvas.getContext('2d');
+        const gridCtx = gridCanvas.getContext('2d');
+        let isRecording = false;
+        let animationFrame;
+        let audioContext;
+        let analyser;
+        let microphone;
+        let dataArray;
+        
+        // Initialize grid
+        function drawGrid() {
+            // Set canvas dimensions
+            gridCanvas.width = gridCanvas.offsetWidth;
+            gridCanvas.height = gridCanvas.offsetHeight;
+            
+            const width = gridCanvas.width;
+            const height = gridCanvas.height;
+            
+            // Clear canvas
+            gridCtx.clearRect(0, 0, width, height);
+            
+            // Draw horizontal grid lines
+            const verticalDivisions = 10; // number of divisions
+            const horizontalDivisions = 12; // number of divisions
+            
+            gridCtx.beginPath();
+            gridCtx.strokeStyle = 'rgba(0, 255, 255, 0.2)'; // Thin cyan color
+            gridCtx.lineWidth = 0.5;
+            
+            // Draw horizontal lines
+            for (let i = 0; i <= verticalDivisions; i++) {
+                const y = (height / verticalDivisions) * i;
+                gridCtx.moveTo(0, y);
+                gridCtx.lineTo(width, y);
+            }
+            
+            // Draw vertical lines
+            for (let i = 0; i <= horizontalDivisions; i++) {
+                const x = (width / horizontalDivisions) * i;
+                gridCtx.moveTo(x, 0);
+                gridCtx.lineTo(x, height);
+            }
+            
+            gridCtx.stroke();
+            
+            // Draw center horizontal line (slightly thicker)
+            gridCtx.beginPath();
+            gridCtx.strokeStyle = 'rgba(0, 255, 255, 0.4)';
+            gridCtx.lineWidth = 1;
+            gridCtx.moveTo(0, height / 2);
+            gridCtx.lineTo(width, height / 2);
+            gridCtx.stroke();
+        }
+        
+        // Draw grid on load
+        window.addEventListener('load', drawGrid);
+        window.addEventListener('resize', drawGrid);
+        
+        // Display current date
+        function updateDate() {
+            const now = new Date();
+            const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
+            dateDisplay.textContent = now.toLocaleDateString('en-US', options);
+        }
+        updateDate();
+        
+        // Countdown timer variables
+        let countdown = 30 * 60; // 30 minutes in seconds
+        let countdownInterval = null;
+        
+        // Countdown timer function
+        function startCountdown() {
+            if (countdownInterval) return; // Don't start if already running
+            
+            countdownInterval = setInterval(() => {
+                countdown--;
+                
+                if (countdown <= 0) {
+                    clearInterval(countdownInterval);
+                    countdownInterval = null;
+                    countdown = 0;
+                }
+                
+                const minutes = Math.floor(countdown / 60);
+                const seconds = countdown % 60;
+                countdownDisplay.textContent = `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}:00`;
+            }, 1000);
+        }
+        
+        function resetCountdown() {
+            if (countdownInterval) {
+                clearInterval(countdownInterval);
+                countdownInterval = null;
+            }
+            countdown = 30 * 60; // Reset to 30 minutes
+            countdownDisplay.textContent = "00:30:00";
+        }
+        
+        // Voice recognition setup
+        let recognition;
+        try {
+            window.SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+            recognition = new SpeechRecognition();
+            recognition.continuous = true;
+            recognition.interimResults = true;
+            
+            recognition.onresult = (event) => {
+                let transcript = '';
+                for (let i = 0; i < event.results.length; i++) {
+                    transcript += event.results[i][0].transcript + ' ';
+                }
+                activityInput.value = transcript;
+            };
+            
+            recognition.onerror = (event) => {
+                console.error('Speech recognition error:', event.error);
+                isRecording = false;
+                cancelAnimationFrame(animationFrame);
+                redDot.style.display = 'none';
+                startVoiceBtn.textContent = 'Start Voice';
+                resetCountdown();
+            };
+        } catch (e) {
+            console.error('Speech recognition not supported in this browser');
+            startVoiceBtn.disabled = true;
+            startVoiceBtn.textContent = 'Voice Not Supported';
+        }
+        
+        // Start/Stop voice recognition
+        startVoiceBtn.addEventListener('click', () => {
+            if (!isRecording) {
+                // Start recording
+                startRecording();
+                isRecording = true;
+                startVoiceBtn.textContent = 'Stop Voice';
+                redDot.style.display = 'block';
+                startCountdown();
+            } else {
+                // Stop recording
+                stopRecording();
+                isRecording = false;
+                startVoiceBtn.textContent = 'Start Voice';
+                redDot.style.display = 'none';
+                resetCountdown();
+            }
+        });
+        
+        // Setup audio recording and waveform visualization
+        async function startRecording() {
+            try {
+                if (!audioContext) {
+                    audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                    analyser = audioContext.createAnalyser();
+                    analyser.fftSize = 256;
+                    const bufferLength = analyser.frequencyBinCount;
+                    dataArray = new Uint8Array(bufferLength);
+                }
+                
+                if (!microphone) {
+                    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                    microphone = audioContext.createMediaStreamSource(stream);
+                    microphone.connect(analyser);
+                }
+                
+                // Start speech recognition
+                if (recognition) {
+                    recognition.start();
+                }
+                
+                // Start drawing waveform
+                drawWaveform();
+                
+            } catch (err) {
+                console.error('Error accessing microphone:', err);
+                alert('Error accessing microphone: ' + err.message);
+            }
+        }
+        
+        function stopRecording() {
+            // Stop speech recognition
+            if (recognition) {
+                recognition.stop();
+            }
+            
+            // Stop animation
+            cancelAnimationFrame(animationFrame);
+            
+            // Clear waveform
+            waveformCtx.clearRect(0, 0, waveformCanvas.width, waveformCanvas.height);
+        }
+        
+        // Draw waveform visualization
+        function drawWaveform() {
+            // Set canvas dimensions
+            waveformCanvas.width = waveformCanvas.clientWidth;
+            waveformCanvas.height = waveformCanvas.clientHeight;
+            
+            const width = waveformCanvas.width;
+            const height = waveformCanvas.height;
+            
+            // Clear canvas
+            waveformCtx.clearRect(0, 0, width, height);
+            
+            // Get frequency data
+            analyser.getByteFrequencyData(dataArray);
+            
+            // Draw waveform
+            waveformCtx.fillStyle = 'cyan';
+            waveformCtx.lineWidth = 2;
+            waveformCtx.strokeStyle = 'cyan';
+            
+            const barWidth = width / dataArray.length;
+            
+            waveformCtx.beginPath();
+            waveformCtx.moveTo(0, height / 2);
+            
+            for (let i = 0; i < dataArray.length; i++) {
+                const barHeight = dataArray[i] / 255 * height / 2;
+                const x = i * barWidth;
+                const y = height / 2 - barHeight / 2;
+                
+                // Draw line connecting points for waveform effect
+                if (i === 0) {
+                    waveformCtx.moveTo(x, height / 2 - barHeight / 2);
+                } else {
+                    waveformCtx.lineTo(x, height / 2 - barHeight / 2);
+                }
+            }
+            
+            // Complete the waveform by going back to the center at the right edge
+            waveformCtx.lineTo(width, height / 2);
+            waveformCtx.stroke();
+            
+            // Continue animation
+            if (isRecording) {
+                animationFrame = requestAnimationFrame(drawWaveform);
+            }
+        }
+        
+        // Generate button click handler
+        generateBtn.addEventListener('click', () => {
+            const prompt = activityInput.value.trim();
+            const style = styleSelect.value;
+            
+            if (prompt === '') {
+                alert('Please enter or speak your mood first.');
+                return;
+            }
+            
+            if (style === 'none') {
+                alert('Please select an image style.');
+                return;
+            }
+            
+            // Show loading indicator
+            loadingIndicator.style.display = 'block';
+            
+            // Hide any previously generated image
+            generatedImage.style.display = 'none';
+            
+            // Simulate image generation (in real app, this would be an API call)
+            setTimeout(() => {
+                generatePlaceholderImage(prompt, style);
+                
+                // Add to log history
+                const entry = document.createElement('p');
+                entry.textContent = `"${prompt}" - ${new Date().toLocaleString()}`;
+                logHistory.appendChild(entry);
+                
+                // Hide loading indicator
+                loadingIndicator.style.display = 'none';
+            }, 2000);
+        });
+        
+        // Generate a placeholder image based on prompt and style
+        function generatePlaceholderImage(prompt, style) {
+            // In a real app, this would call an AI image generation API
+            // For now, we'll create a colored SVG with the text and style
+            
+            const colors = {
+                'photo': '#3498db',
+                'anime': '#e74c3c',
+                'Rembrandt': '#f39c12',
+                'Picasso': '#9b59b6',
+                'Van Gogh': '#2ecc71',
+                'Monet': '#1abc9c'
+            };
+            
+            const color = colors[style] || '#3498db';
+            
+            // Create SVG with text
+            const svgContent = `
+                <svg xmlns="http://www.w3.org/2000/svg" width="400" height="400">
+                    <rect width="400" height="400" fill="${color}" />
+                    <text x="200" y="180" font-family="Arial" font-size="18" text-anchor="middle" fill="white">
+                        ${prompt.substring(0, 30)}${prompt.length > 30 ? '...' : ''}
+                    </text>
+                    <text x="200" y="220" font-family="Arial" font-size="22" text-anchor="middle" fill="white">
+                        Style: ${style}
+                    </text>
+                </svg>
+            `;
+            
+            // Convert SVG to data URL
+            const dataUrl = 'data:image/svg+xml;base64,' + btoa(svgContent);
+            
+            // Display the image
+            generatedImage.src = dataUrl;
+            generatedImage.style.display = 'block';
+        }
+        
+        // Redo button click handler
+        redoBtn.addEventListener('click', () => {
+            activityInput.value = '';
+            generatedImage.style.display = 'none';
+        });
+        
+        // Save button click handler
+        saveImageBtn.addEventListener('click', () => {
+            if (generatedImage.style.display === 'none') {
+                alert('Generate an image first before saving.');
+                return;
+            }
+            
+            // Create a temporary link element to download the image
+            const link = document.createElement('a');
+            link.href = generatedImage.src;
+            link.download = `mood-art-${new Date().toISOString().slice(0, 10)}.png`;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        });
     </script>
 </body>
 </html>
