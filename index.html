@@ -62,8 +62,8 @@
         }
         .button { 
             padding: 8px 16px; 
-            background: cyan; /* Changed to cyan background */
-            color: black; /* Changed text color for contrast */
+            background: cyan; /* Cyan background */
+            color: black; /* Black text for contrast */
             border: 1px solid cyan; 
             border-radius: 5px; 
             flex: 1; 
@@ -97,7 +97,7 @@
             color: cyan; 
         }
         .past-entries .dots { 
-            display: flex; 
+            display: none; /* Hidden by default */
             justify-content: center; 
             gap: 5px; 
             margin-top: 5px; 
@@ -198,7 +198,7 @@
             if (!analyser) return;
             analyser.getByteTimeDomainData(dataArray);
             ctx.clearRect(0, 0, canvas.width, canvas.height);
-            drawGrid();
+            drawGrid(); // Ensure grid is drawn
             ctx.strokeStyle = "cyan";
             ctx.lineWidth = 2;
             ctx.beginPath();
@@ -236,7 +236,7 @@
         function updateDateTime() {
             const now = new Date();
             const year = now.getFullYear();
-            const month = String(now.getMonth() + 1).padStart(2, '0'); // Months are 0-based
+            const month = String(now.getMonth() + 1).padStart(2, '0');
             const day = String(now.getDate()).padStart(2, '0');
             const hours = String(now.getHours()).padStart(2, '0');
             const minutes = String(now.getMinutes()).padStart(2, '0');
@@ -254,6 +254,7 @@
         const styleSelect = document.getElementById("styleSelect");
         const generatedImage = document.getElementById("generatedImage");
         const loadingIndicator = document.getElementById("loadingIndicator");
+        const pastEntriesDots = document.querySelector(".past-entries .dots");
 
         function updateCountdown() {
             const sec = String(timeLeft).padStart(2, '0');
@@ -350,10 +351,10 @@
                 return;
             }
 
-            // Show loading dots
+            // Show loading dots and Past Entries dots
             loadingIndicator.style.display = "block";
+            pastEntriesDots.style.display = "flex";
 
-            // Simulate image generation with a delay
             try {
                 const entry = {
                     text: moodText,
@@ -380,8 +381,9 @@
                 console.error("Image generation error:", err);
                 alert("Failed to generate image. Please try again.");
             } finally {
-                // Hide loading dots
+                // Hide loading dots and Past Entries dots
                 loadingIndicator.style.display = "none";
+                pastEntriesDots.style.display = "none";
             }
         });
 
