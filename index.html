@@ -13,7 +13,18 @@
         .dot-alert { display: none; width: 10px; height: 10px; background: red; border-radius: 50%; position: absolute; }
         #activityInput { width: 100%; margin: 10px 0; }
         .button-group { margin: 10px 0; }
-        .button { padding: 8px 16px; margin-right: 10px; }
+        .button { 
+            padding: 8px 16px; 
+            margin-right: 10px; 
+            min-width: 100px; 
+            text-align: center;
+        }
+        #styleSelect { 
+            padding: 8px; 
+            width: 100%; 
+            margin: 10px 0;
+            text-align: center;
+        }
         #generatedImage { max-width: 100%; display: none; }
         #moodEntry { margin-top: 20px; padding: 10px; background: #f0f0f0; }
         #moodEntry h3 { margin-top: 0; }
@@ -57,20 +68,24 @@
         canvas.height = canvas.clientHeight;
         const logHistory = document.getElementById("logHistory");
 
-        // Data storage
         let userData = JSON.parse(localStorage.getItem('moodEntries')) || [];
-
-        let audioContext, analyser, dataArray;
-        let animationFrameId;
+        let audioContext, analyser, dataArray, recognition;
+        let animationFrameId, isRecording = false, timeLeft = 30;
 
         function drawGrid() {
-            ctx.strokeStyle = "#333";
+            ctx.strokeStyle = "cyan";
             ctx.lineWidth = 0.5;
             for (let x = 0; x < canvas.width; x += 20) {
-                ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, canvas.height); ctx.stroke();
+                ctx.beginPath(); 
+                ctx.moveTo(x, 0); 
+                ctx.lineTo(x, canvas.height); 
+                ctx.stroke();
             }
             for (let y = 0; y < canvas.height; y += 20) {
-                ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(canvas.width, y); ctx.stroke();
+                ctx.beginPath(); 
+                ctx.moveTo(0, y); 
+                ctx.lineTo(canvas.width, y); 
+                ctx.stroke();
             }
         }
 
@@ -100,6 +115,7 @@
             try {
                 const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
                 audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                if (audioContext.state === "suspended") await audioContext.resume(); // Ensure resumed on iOS
                 const source = audioContext.createMediaStreamSource(stream);
                 analyser = audioContext.createAnalyser();
                 analyser.fftSize = 2048;
@@ -108,7 +124,7 @@
                 drawWaveform();
             } catch (err) {
                 console.error("Audio setup error:", err);
-                alert("Audio setup failed. Please check microphone permissions.");
+                alert("Failed to access microphone. Please ensure permissions are granted in Settings > Safari > Microphone.");
             }
         }
 
@@ -127,8 +143,6 @@
         const styleSelect = document.getElementById("styleSelect");
         const generatedImage = document.getElementById("generatedImage");
 
-        let recognition, countdownInterval, isRecording = false, timeLeft = 30;
-
         function updateCountdown() {
             const sec = String(timeLeft).padStart(2, '0');
             countdownEl.textContent = `00:${sec}:00`;
@@ -137,62 +151,84 @@
         function startCountdown() {
             timeLeft = 30;
             updateCountdown();
-            countdownInterval = setInterval(() => {
+            const countdownInterval = setInterval(() => {
                 timeLeft--;
                 updateCountdown();
                 if (timeLeft <= 10) document.getElementById("redDot").style.display = "block";
-                if (timeLeft <= 0) stopRecording();
+                if (timeLeft <= 0) stopRecording(countdownInterval);
             }, 1000);
+            return countdownInterval;
         }
 
-        function stopCountdown() {
+        function stopRecording(countdownInterval) {
+            if (recognition) recognition.stop();
             clearInterval(countdownInterval);
+            isRecording = false;
             countdownEl.textContent = "00:30:00";
             document.getElementById("redDot").style.display = "none";
-        }
-
-        function stopRecording() {
-            if (recognition) recognition.stop();
-            isRecording = false;
-            stopCountdown();
             startVoiceBtn.textContent = "Start Voice";
             if (animationFrameId) cancelAnimationFrame(animationFrameId);
+            if (audioContext) audioContext.suspend(); // Suspend to save resources
         }
 
-        function startRecording() {
-            if (!('webkitSpeechRecognition' in window || 'SpeechRecognition' in window)) {
-                alert("Voice recording not supported.");
+        async function startRecording() {
+            const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+            if (!SpeechRecognition) {
+                alert("Voice recording not supported in this browser. Please use a compatible browser like Safari 14.1+ or Chrome.");
                 return;
             }
-            recognition = new (window.SpeechRecognition || window.webkitSpeechRecognition)();
-            recognition.lang = "en-US";
-            recognition.continuous = true;
-            recognition.interimResults = true;
-            let finalTranscript = "";
-            recognition.onresult = (event) => {
-                finalTranscript = Array.from(event.results)
-                    .map(result => result[0].transcript)
-                    .join(' ');
-                activityInput.value = finalTranscript.trim();
-                activityInput.scrollTop = activityInput.scrollHeight;
-            };
-            recognition.onerror = (e) => console.error("Speech error:", e);
-            recognition.onend = () => stopRecording();
-            recognition.start();
-            isRecording = true;
-            startVoiceBtn.textContent = "Stop Voice";
-            startCountdown();
+
+            try {
+                // Ensure audio context is set up and resumed
+                if (!audioContext) await setupAudio();
+                else if (audioContext.state === "suspended") await audioContext.resume();
+
+                recognition = new SpeechRecognition();
+                recognition.lang = "en-US";
+                recognition.continuous = false; // Disable continuous mode for iOS compatibility
+                recognition.interimResults = true;
+
+                let finalTranscript = activityInput.value;
+                recognition.onresult = (event) => {
+                    finalTranscript = Array.from(event.results)
+                        .map(result => result[0].transcript)
+                        .join(' ');
+                    activityInput.value = finalTranscript.trim();
+                    activityInput.scrollTop = activityInput.scrollHeight;
+                };
+
+                recognition.onerror = (e) => {
+                    console.error("Speech error:", e.error);
+                    alert(`Speech recognition error: ${e.error}. Check microphone permissions or try again.`);
+                    stopRecording();
+                };
+
+                recognition.onend = () => {
+                    if (isRecording) {
+                        // Restart recognition if still recording (manual continuous simulation)
+                        setTimeout(startRecording, 100);
+                    }
+                };
+
+                recognition.start();
+                isRecording = true;
+                startVoiceBtn.textContent = "Stop Voice";
+                const countdownInterval = startCountdown();
+            } catch (err) {
+                console.error("Recording setup error:", err);
+                alert("Failed to start recording. Ensure microphone access is allowed.");
+            }
         }
 
-        startVoiceBtn.addEventListener("click", () => {
+        startVoiceBtn.addEventListener("click", async () => {
             if (isRecording) stopRecording();
-            else setupAudio().then(() => startRecording());
+            else await startRecording();
         });
 
-        redoBtn.addEventListener("click", () => {
+        redoBtn.addEventListener("click", async () => {
             if (!isRecording) {
                 activityInput.value = "";
-                setupAudio().then(() => startRecording());
+                await startRecording();
             }
         });
 
@@ -204,7 +240,6 @@
                 return;
             }
 
-            // Log to Mood Entry
             const entry = {
                 text: moodText,
                 style: style,
@@ -217,14 +252,12 @@
             logEntry.textContent = `${entry.timestamp}: ${entry.text} (${entry.style})`;
             logHistory.appendChild(logEntry);
 
-            // Simulate image generation (replace with actual API call)
             if (style !== "none") {
                 generatedImage.src = "https://via.placeholder.com/400?text=Generated+Image";
                 generatedImage.style.display = "block";
             }
         });
 
-        // Initial setup
         drawGrid();
     </script>
 </body>
