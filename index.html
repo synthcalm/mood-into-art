@@ -157,7 +157,48 @@
   <div id="logHistory"></div>
 </div>
 <script>
-  // Placeholder for new voice input implementation if needed
+  document.getElementById('generate').addEventListener('click', async () => {
+    const input = document.getElementById('activityInput').value.trim();
+    const style = document.getElementById('styleSelect').value;
+    const loading = document.getElementById('loadingIndicator');
+    const output = document.getElementById('generatedImage');
+    const log = document.getElementById('logHistory');
+
+    if (!input || style === 'none') {
+      alert('Please enter a mood description and choose a style.');
+      return;
+    }
+
+    const prompt = style === 'photo' ? `Hyper-realistic photo of ${input}` :
+                    style === 'anime' ? `Japanese anime illustration of ${input}` :
+                    `${input} in the style of ${style}`;
+
+    loading.style.display = 'flex';
+    output.style.display = 'none';
+
+    try {
+      const response = await fetch('https://mood-into-art-backend.onrender.com/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ prompt })
+      });
+
+      const data = await response.json();
+      if (data.image) {
+        output.src = data.image;
+        output.style.display = 'block';
+        const timestamp = new Date().toLocaleString();
+        log.innerHTML += `<p>${timestamp}: ${prompt}</p>`;
+      } else {
+        alert('Image generation failed.');
+      }
+    } catch (err) {
+      alert('An error occurred.');
+      console.error(err);
+    } finally {
+      loading.style.display = 'none';
+    }
+  });
 </script>
 </body>
 </html>
