@@ -57,10 +57,17 @@
       align-items: center;
       width: 100%;
       font-size: 10pt;
-      color: #00FF00;
       padding: 0 5px;
       margin-top: -10px;
       margin-bottom: 10px;
+    }
+
+    #dateDisplay {
+      color: white;
+    }
+
+    #countdownDisplay {
+      color: red;
     }
 
     textarea, select {
@@ -71,6 +78,7 @@
       color: #00FF00;
       margin-bottom: 10px;
       resize: vertical;
+      text-align: center;
     }
 
     .button-group {
@@ -129,6 +137,7 @@
       margin-top: 20px;
       border-top: 1px dashed #00FF00;
       padding-top: 10px;
+      text-align: center;
     }
   </style>
 </head>
@@ -145,16 +154,6 @@
   <select id="styleSelect">
     <option value="photo">Hyper-realistic Photo</option>
     <option value="anime">Japanese Anime Style</option>
-    <option value="Rembrandt">Rembrandt</option>
-    <option value="Picasso">Picasso</option>
-    <option value="Van Gogh">Van Gogh</option>
-    <option value="Monet">Monet</option>
-    <option value="Matisse">Matisse</option>
-    <option value="Klimt">Klimt</option>
-    <option value="Hokusai">Hokusai</option>
-    <option value="Dali">Dali</option>
-    <option value="Warhol">Warhol</option>
-    <option value="Basquiat">Basquiat</option>
     <option value="none">No Image</option>
   </select>
   <div class="button-group">
@@ -173,69 +172,20 @@
   <div id="logHistory"></div>
 </div>
 <script>
-  const grid = document.getElementById('grid');
-  const gridCtx = grid.getContext('2d');
-  function drawGrid() {
-    grid.width = grid.clientWidth;
-    grid.height = grid.clientHeight;
-    const w = grid.width;
-    const h = grid.height;
-    gridCtx.clearRect(0, 0, w, h);
-    gridCtx.strokeStyle = 'rgba(0, 255, 0, 0.3)';
-    gridCtx.lineWidth = 0.3;
-    for (let i = 0; i <= w; i += w / 20) {
-      gridCtx.beginPath();
-      gridCtx.moveTo(i, 0);
-      gridCtx.lineTo(i, h);
-      gridCtx.stroke();
-    }
-    for (let j = 0; j <= h; j += h / 12) {
-      gridCtx.beginPath();
-      gridCtx.moveTo(0, j);
-      gridCtx.lineTo(w, j);
-      gridCtx.stroke();
-    }
+  const dateDisplay = document.getElementById("dateDisplay");
+  function updateDateTime() {
+    const now = new Date();
+    dateDisplay.textContent = now.toLocaleString("en-CA", {
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit"
+    });
   }
-  window.addEventListener('load', drawGrid);
-  window.addEventListener('resize', drawGrid);
-
-  let recognition, isRecording = false;
-  const startBtn = document.getElementById("startVoice");
-  const activityInput = document.getElementById("activityInput");
-  const redDot = document.getElementById("redDot");
-
-  startBtn.addEventListener("click", () => {
-    if (!('webkitSpeechRecognition' in window || 'SpeechRecognition' in window)) {
-      alert("Speech recognition not supported in this browser.");
-      return;
-    }
-    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-    if (!isRecording) {
-      recognition = new SpeechRecognition();
-      recognition.continuous = true;
-      recognition.interimResults = true;
-      recognition.lang = "en-US";
-      let finalTranscript = activityInput.value;
-      recognition.onresult = (e) => {
-        for (let i = e.resultIndex; i < e.results.length; i++) {
-          finalTranscript += ' ' + e.results[i][0].transcript;
-        }
-        activityInput.value = finalTranscript.trim();
-        activityInput.scrollTop = activityInput.scrollHeight;
-      };
-      recognition.start();
-      startBtn.textContent = "Stop Voice";
-      startBtn.classList.add("recording");
-      redDot.style.display = "block";
-      isRecording = true;
-    } else {
-      recognition.stop();
-      startBtn.textContent = "Start Voice";
-      startBtn.classList.remove("recording");
-      redDot.style.display = "none";
-      isRecording = false;
-    }
-  });
+  setInterval(updateDateTime, 1000);
+  updateDateTime();
 </script>
 </body>
 </html>
