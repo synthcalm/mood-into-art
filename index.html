@@ -5,40 +5,110 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
     <title>Mood Into Art</title>
     <style>
-        .container { max-width: 800px; margin: 20px auto; }
+        body { background: #1a1a1a; color: white; font-family: Arial, sans-serif; }
+        .container { 
+            max-width: 800px; 
+            margin: 20px auto; 
+            border: 2px solid cyan; 
+            border-radius: 10px; 
+            padding: 15px; 
+        }
+        h1 { 
+            text-align: center; 
+            color: white; 
+            margin: 0 0 10px; 
+            font-size: 24px; 
+        }
         #waveform { width: 100%; height: 200px; background: #1a1a1a; }
-        .footer-bar { display: flex; justify-content: space-between; padding: 10px; }
-        #countdownDisplay { color: red; font-weight: bold; }
-        #dateDisplay { color: white; }
-        .dot-alert { display: none; width: 10px; height: 10px; background: red; border-radius: 50%; position: absolute; }
-        #activityInput { width: 100%; margin: 10px 0; }
-        .button-group { margin: 10px 0; }
-        .button { 
-            padding: 8px 16px; 
-            margin-right: 10px; 
-            min-width: 100px; 
-            text-align: center;
+        .footer-bar { 
+            display: flex; 
+            justify-content: center; 
+            padding: 10px; 
+        }
+        #countdownDisplay { color: red; font-weight: bold; font-size: 20px; }
+        .dot-alert { 
+            display: none; 
+            width: 10px; 
+            height: 10px; 
+            background: red; 
+            border-radius: 50%; 
+            position: absolute; 
+            top: 50px; 
+            left: 50%; 
+            transform: translateX(-50%); 
+        }
+        #activityInput { 
+            width: 100%; 
+            margin: 10px 0; 
+            padding: 5px; 
+            background: #333; 
+            color: cyan; 
+            border: 1px solid cyan; 
         }
         #styleSelect { 
-            padding: 8px; 
             width: 100%; 
-            margin: 10px 0;
-            text-align: center;
+            padding: 8px; 
+            margin: 10px 0; 
+            background: #333; 
+            color: white; 
+            border: 1px solid cyan; 
         }
-        #generatedImage { max-width: 100%; display: none; }
-        #moodEntry { margin-top: 20px; padding: 10px; background: #f0f0f0; }
-        #moodEntry h3 { margin-top: 0; }
+        .button-group { 
+            display: flex; 
+            justify-content: space-around; 
+            margin: 10px 0; 
+        }
+        .button { 
+            padding: 8px 16px; 
+            background: #333; 
+            color: white; 
+            border: 1px solid cyan; 
+            border-radius: 5px; 
+            flex: 1; 
+            margin: 0 5px; 
+            text-align: center; 
+        }
+        #generatedImage { max-width: 100%; display: none; margin-top: 10px; }
+        .past-entries { 
+            text-align: center; 
+            margin-top: 10px; 
+            color: cyan; 
+        }
+        .past-entries .dots { 
+            display: flex; 
+            justify-content: center; 
+            gap: 5px; 
+            margin-top: 5px; 
+        }
+        .past-entries .dot { 
+            width: 8px; 
+            height: 8px; 
+            background: cyan; 
+            border-radius: 50%; 
+        }
+        #moodEntry { 
+            margin-top: 20px; 
+            padding: 10px; 
+            background: #333; 
+            border: 1px solid cyan; 
+            border-radius: 5px; 
+        }
+        #moodEntry h3 { 
+            margin-top: 0; 
+            color: white; 
+        }
+        #logHistory { color: white; }
     </style>
 </head>
 <body>
     <div class="container">
+        <h1>Describe your perfect day.</h1>
         <canvas id="waveform"></canvas>
         <div class="footer-bar">
-            <div id="dateDisplay"></div>
             <div id="countdownDisplay">00:30:00</div>
         </div>
         <div class="dot-alert" id="redDot"></div>
-        <textarea id="activityInput" rows="4" placeholder="Describe your mood..."></textarea>
+        <textarea id="activityInput" rows="4" placeholder="[No speech recognized]"></textarea>
         <select id="styleSelect">
             <option value="photo">Hyper-realistic Photo</option>
             <option value="anime">Japanese Anime Style</option>
@@ -53,6 +123,14 @@
             <button class="button" id="redo">Redo</button>
             <button class="button" id="generate">Generate Image</button>
             <button class="button" id="saveImage">Save</button>
+        </div>
+        <div class="past-entries">
+            Past Entries
+            <div class="dots">
+                <div class="dot"></div>
+                <div class="dot"></div>
+                <div class="dot"></div>
+            </div>
         </div>
         <img id="generatedImage" />
         <div id="moodEntry">
@@ -124,16 +202,9 @@
                 drawWaveform();
             } catch (err) {
                 console.error("Audio setup error:", err);
-                alert("Failed to access microphone. Check Settings > Safari > browns Check microphone permissions.");
+                alert("Failed to access microphone. Check Settings > Safari > Microphone.");
             }
         }
-
-        function updateDateTime() {
-            const now = new Date();
-            document.getElementById("dateDisplay").textContent = now.toLocaleString();
-        }
-        updateDateTime();
-        setInterval(updateDateTime, 1000);
 
         const startVoiceBtn = document.getElementById("startVoice");
         const redoBtn = document.getElementById("redo");
@@ -184,7 +255,7 @@
 
                 recognition = new SpeechRecognition();
                 recognition.lang = "en-US";
-                recognition.continuous = false; // iOS compatibility
+                recognition.continuous = false;
                 recognition.interimResults = true;
 
                 let finalTranscript = activityInput.value;
@@ -203,7 +274,7 @@
                 };
 
                 recognition.onend = () => {
-                    if (isRecording) setTimeout(startRecording, 100); // Manual restart for iOS
+                    if (isRecording) setTimeout(startRecording, 100);
                 };
 
                 recognition.start();
