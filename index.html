@@ -58,7 +58,7 @@
             padding: 10px;
             background-color: black;
             border: 2px solid cyan;
-            color: white; /* Changed text color to white */
+            color: white;
             margin-bottom: 10px;
             overflow-y: auto;
         }
@@ -101,7 +101,7 @@
             border: 1px solid cyan;
             display: none;
         }
-         #logHistory {
+        #logHistory {
             width: 100%;
             padding: 10px;
             background-color: black;
@@ -152,6 +152,8 @@
         canvas.height = canvas.clientHeight;
         const logHistory = document.getElementById("logHistory");
 
+        let audioContext, analyser, dataArray;
+
         function drawGrid() {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
             ctx.strokeStyle = "cyan";
@@ -163,8 +165,48 @@
                 ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(canvas.width, y); ctx.stroke();
             }
         }
-        drawGrid();
 
+        function drawWaveform() {
+            if (!analyser) return;
+            analyser.getByteTimeDomainData(dataArray);
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.strokeStyle = "cyan";
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            let sliceWidth = canvas.width / dataArray.length;
+            let x = 0;
+            for (let i = 0; i < dataArray.length; i++) {
+                let v = dataArray[i] / 128.0;
+                let y = (v * canvas.height) / 2;
+                if (i === 0) {
+                    ctx.moveTo(x, y);
+                } else {
+                    ctx.lineTo(x, y);
+                }
+                x += sliceWidth;
+            }
+            ctx.lineTo(canvas.width, canvas.height / 2);
+            ctx.stroke();
+            requestAnimationFrame(drawWaveform);
+        }
+
+        async function setupAudio() {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                const source = audioContext.createMediaStreamSource(stream);
+                analyser = audioContext.createAnalyser();
+                analyser.fftSize = 2048;
+                dataArray = new Uint8Array(analyser.frequencyBinCount);
+                source.connect(analyser);
+                drawWaveform();
+            } catch (err) {
+                console.error("Audio setup error:", err);
+                alert("Audio setup failed. Please check microphone permissions.");
+            }
+        }
+
+        drawGrid();
         document.getElementById("dateDisplay").textContent = new Date().toISOString().slice(0, 10);
 
         const startVoiceBtn = document.getElementById("startVoice");
@@ -209,7 +251,7 @@
 
         function startRecording() {
             if (!('webkitSpeechRecognition' in window || 'SpeechRecognition' in window)) {
-                alert("Voice recording not supported on this browser.");
+                alert("Voice recording not supported.");
                 return;
             }
             recognition = new (window.SpeechRecognition || window.webkitSpeechRecognition)();
@@ -234,7 +276,11 @@
         }
 
         startVoiceBtn.addEventListener("click", () => {
-            isRecording ? stopRecording() : startRecording();
+            if (isRecording) {
+                stopRecording();
+            } else {
+                setupAudio().then(() => { startRecording(); });
+            }
         });
 
         generateBtn.addEventListener("click", async () => {
