@@ -178,7 +178,107 @@
             <div id="logHistory"></div>
         </div>
     </div>
-    <script src="https://cdn.jsdelivr.net/gh/microsoft/cognitive-services-speech-sdk-js/distrib/browser/microsoft.cognitiveservices.speech.sdk.bundle-min.js"></script>
-    <script src="/js/mood-into-art.js"></script>
+    <script>
+        const grid = document.getElementById('grid');
+        const gridCtx = grid.getContext('2d');
+        function drawGrid() {
+            grid.width = grid.clientWidth;
+            grid.height = grid.clientHeight;
+            const w = grid.width;
+            const h = grid.height;
+            gridCtx.clearRect(0, 0, w, h);
+            gridCtx.strokeStyle = 'rgba(0,255,255,0.2)';
+            gridCtx.lineWidth = 0.5;
+            for (let i = 0; i < w; i += w / 12) {
+                gridCtx.beginPath();
+                gridCtx.moveTo(i, 0);
+                gridCtx.lineTo(i, h);
+                gridCtx.stroke();
+            }
+            for (let j = 0; j < h; j += h / 10) {
+                gridCtx.beginPath();
+                gridCtx.moveTo(0, j);
+                gridCtx.lineTo(w, j);
+                gridCtx.stroke();
+            }
+            gridCtx.strokeStyle = 'rgba(0,255,255,0.4)';
+            gridCtx.beginPath();
+            gridCtx.moveTo(0, h / 2);
+            gridCtx.lineTo(w, h / 2);
+            gridCtx.stroke();
+        }
+        window.addEventListener('load', drawGrid);
+        window.addEventListener('resize', drawGrid);
+
+        const startBtn = document.getElementById('startVoice');
+        const redDot = document.getElementById('redDot');
+        const waveform = document.getElementById('waveform');
+        const waveformCtx = waveform.getContext('2d');
+        let audioContext, analyser, dataArray, source, animationId, recognition, isRecording = false;
+
+        async function startMic() {
+            audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            source = audioContext.createMediaStreamSource(stream);
+            analyser = audioContext.createAnalyser();
+            analyser.fftSize = 2048;
+            dataArray = new Uint8Array(analyser.fftSize);
+            source.connect(analyser);
+            drawWaveform();
+        }
+        function drawWaveform() {
+            waveform.width = waveform.clientWidth;
+            waveform.height = waveform.clientHeight;
+            waveformCtx.clearRect(0, 0, waveform.width, waveform.height);
+            analyser.getByteTimeDomainData(dataArray);
+            waveformCtx.strokeStyle = 'cyan';
+            waveformCtx.beginPath();
+            let sliceWidth = waveform.width / dataArray.length;
+            let x = 0;
+            for (let i = 0; i < dataArray.length; i++) {
+                let v = dataArray[i] / 128.0;
+                let y = v * waveform.height / 2;
+                if (i === 0) waveformCtx.moveTo(x, y);
+                else waveformCtx.lineTo(x, y);
+                x += sliceWidth;
+            }
+            waveformCtx.lineTo(waveform.width, waveform.height / 2);
+            waveformCtx.stroke();
+            animationId = requestAnimationFrame(drawWaveform);
+        }
+        function startSpeech() {
+            const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+            if (!SpeechRecognition) return alert('Speech recognition not supported');
+            recognition = new SpeechRecognition();
+            recognition.continuous = true;
+            recognition.interimResults = true;
+            recognition.lang = 'en-US';
+            const input = document.getElementById('activityInput');
+            recognition.onresult = e => {
+                let transcript = '';
+                for (let i = 0; i < e.results.length; i++) {
+                    transcript += e.results[i][0].transcript + ' ';
+                }
+                input.value = transcript;
+            };
+            recognition.start();
+        }
+        startBtn.addEventListener('click', async () => {
+            if (!isRecording) {
+                await startMic();
+                startSpeech();
+                redDot.style.display = 'block';
+                startBtn.textContent = 'Stop Voice';
+                isRecording = true;
+            } else {
+                recognition.stop();
+                audioContext.close();
+                cancelAnimationFrame(animationId);
+                redDot.style.display = 'none';
+                startBtn.textContent = 'Start Voice';
+                isRecording = false;
+            }
+        });
+    </script>
 </body>
 </html>
