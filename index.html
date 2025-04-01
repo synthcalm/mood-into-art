@@ -157,6 +157,52 @@
   <div id="logHistory"></div>
 </div>
 <script>
+  // Draw initial grid on waveform canvas
+  const waveformCanvas = document.getElementById('waveform');
+  const ctx = waveformCanvas.getContext('2d');
+  function drawGrid() {
+    waveformCanvas.width = waveformCanvas.clientWidth;
+    waveformCanvas.height = waveformCanvas.clientHeight;
+    const w = waveformCanvas.width;
+    const h = waveformCanvas.height;
+    ctx.clearRect(0, 0, w, h);
+    ctx.strokeStyle = 'rgba(0, 255, 0, 0.6)';
+    ctx.lineWidth = 1;
+    for (let i = 0; i <= w; i += w / 10) {
+      ctx.beginPath();
+      ctx.moveTo(i, 0);
+      ctx.lineTo(i, h);
+      ctx.stroke();
+    }
+    for (let j = 0; j <= h; j += h / 6) {
+      ctx.beginPath();
+      ctx.moveTo(0, j);
+      ctx.lineTo(w, j);
+      ctx.stroke();
+    }
+    ctx.strokeStyle = 'rgba(0, 255, 0, 0.9)';
+    ctx.beginPath();
+    ctx.moveTo(0, h / 2);
+    ctx.lineTo(w, h / 2);
+    ctx.stroke();
+  }
+  window.addEventListener('load', drawGrid);
+  window.addEventListener('resize', drawGrid);
+
+  // Set current date and time
+  function updateDateTime() {
+    const now = new Date();
+    document.getElementById('dateDisplay').textContent = now.toLocaleString();
+  }
+  setInterval(updateDateTime, 1000);
+  updateDateTime();
+
+  // Redo button clears text
+  document.getElementById('redo').addEventListener('click', () => {
+    document.getElementById('activityInput').value = '';
+  });
+
+  // Generate image
   document.getElementById('generate').addEventListener('click', async () => {
     const input = document.getElementById('activityInput').value.trim();
     const style = document.getElementById('styleSelect').value;
