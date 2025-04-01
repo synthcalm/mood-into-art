@@ -6,6 +6,7 @@
   <title>MIA (Mood Into Art)</title>
   <style>
     @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap');
+
     body {
       font-family: 'Share Tech Mono', monospace;
       margin: 0;
@@ -16,6 +17,7 @@
       align-items: center;
       min-height: 100vh;
     }
+
     .container {
       width: 95%;
       max-width: 500px;
@@ -27,6 +29,7 @@
       flex-direction: column;
       align-items: center;
     }
+
     canvas#waveform {
       width: 100%;
       height: 80px;
@@ -34,6 +37,7 @@
       border: 1px solid #00FF00;
       margin-bottom: 10px;
     }
+
     .dot-alert {
       width: 10px;
       height: 10px;
@@ -43,10 +47,12 @@
       display: none;
       margin-bottom: 10px;
     }
+
     @keyframes blink {
       0%, 100% { opacity: 1; }
       50% { opacity: 0; }
     }
+
     .footer-bar {
       display: flex;
       justify-content: space-between;
@@ -59,6 +65,7 @@
       margin-top: -10px;
       margin-bottom: 10px;
     }
+
     textarea, select {
       width: 100%;
       padding: 10px;
@@ -68,6 +75,11 @@
       margin-bottom: 10px;
       resize: vertical;
     }
+
+    textarea {
+      overflow-y: auto;
+    }
+
     .button-group {
       width: 100%;
       display: grid;
@@ -75,24 +87,28 @@
       gap: 10px;
       margin-top: 10px;
     }
+
     .button {
       background-color: black;
       border: 2px solid #00FF00;
       color: #00FF00;
       padding: 10px;
       cursor: pointer;
-      font-family: Arial, sans-serif;
+      font-family: 'Share Tech Mono', monospace;
     }
+
     .button.recording {
       background-color: #FFFF00;
       color: black;
     }
+
     #loadingIndicator {
       display: none;
       justify-content: center;
       gap: 4px;
       margin-top: 10px;
     }
+
     .dot {
       width: 4px;
       height: 4px;
@@ -101,10 +117,12 @@
       opacity: 0;
       animation: blink 1.6s infinite;
     }
+
     .dot:nth-child(1) { animation-delay: 0s; }
     .dot:nth-child(2) { animation-delay: 0.4s; }
     .dot:nth-child(3) { animation-delay: 0.8s; }
     .dot:nth-child(4) { animation-delay: 1.2s; }
+
     #generatedImage {
       max-width: 100%;
       border: 1px solid #00FF00;
@@ -117,7 +135,7 @@
 <div class="container">
   <canvas id="waveform"></canvas>
   <div class="footer-bar">
-    <div id="dateDisplay">2025/04/01</div>
+    <div id="dateDisplay"></div>
     <div id="countdownDisplay" class="clock">00:60:00</div>
   </div>
   <div class="dot-alert" id="redDot"></div>
@@ -144,13 +162,24 @@
     <button class="button" id="saveImage">Save</button>
   </div>
   <div id="loadingIndicator">
-    <div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div>
+    <div class="dot"></div>
+    <div class="dot"></div>
+    <div class="dot"></div>
+    <div class="dot"></div>
   </div>
   <img id="generatedImage" />
 </div>
+
 <script>
+// Set date
+const today = new Date();
+document.getElementById("dateDisplay").textContent = today.toISOString().slice(0, 10);
+
+// Draw waveform grid
 const canvas = document.getElementById("waveform");
 const ctx = canvas.getContext("2d");
+canvas.width = canvas.clientWidth;
+canvas.height = canvas.clientHeight;
 function drawGrid() {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
   ctx.strokeStyle = "#00FF00";
@@ -163,6 +192,105 @@ function drawGrid() {
   }
 }
 window.addEventListener('load', drawGrid);
+
+// Voice and countdown logic
+const startVoiceBtn = document.getElementById("startVoice");
+const activityInput = document.getElementById("activityInput");
+const countdownEl = document.getElementById("countdownDisplay");
+const generateBtn = document.getElementById("generate");
+const styleSelect = document.getElementById("styleSelect");
+const generatedImage = document.getElementById("generatedImage");
+const loadingIndicator = document.getElementById("loadingIndicator");
+
+let recognition, countdownInterval, isRecording = false, timeLeft = 60;
+
+function updateCountdown() {
+  const sec = String(timeLeft).padStart(2, '0');
+  countdownEl.textContent = `00:${sec}:00`;
+}
+function startCountdown() {
+  timeLeft = 60;
+  updateCountdown();
+  countdownInterval = setInterval(() => {
+    timeLeft--;
+    updateCountdown();
+    if (timeLeft <= 10) document.getElementById("redDot").style.display = "block";
+    if (timeLeft <= 0) stopRecording();
+  }, 1000);
+}
+function stopCountdown() {
+  clearInterval(countdownInterval);
+  countdownEl.textContent = "00:60:00";
+  document.getElementById("redDot").style.display = "none";
+}
+function stopRecording() {
+  if (recognition) recognition.stop();
+  isRecording = false;
+  stopCountdown();
+  startVoiceBtn.textContent = "Start Voice";
+  startVoiceBtn.classList.remove("recording");
+}
+function startRecording() {
+  if (!('webkitSpeechRecognition' in window || 'SpeechRecognition' in window)) {
+    alert("Voice recording not supported on this browser.");
+    return;
+  }
+  recognition = new (window.SpeechRecognition || window.webkitSpeechRecognition)();
+  recognition.lang = "en-US";
+  recognition.continuous = true;
+  recognition.interimResults = true;
+  let finalTranscript = activityInput.value;
+  recognition.onresult = (event) => {
+    for (let i = event.resultIndex; i < event.results.length; i++) {
+      finalTranscript += ' ' + event.results[i][0].transcript;
+    }
+    activityInput.value = finalTranscript.trim();
+    activityInput.scrollTop = activityInput.scrollHeight;
+  };
+  recognition.onerror = (e) => console.error("Speech error:", e);
+  recognition.onend = () => stopRecording();
+  recognition.start();
+  isRecording = true;
+  startVoiceBtn.textContent = "Stop Voice";
+  startVoiceBtn.classList.add("recording");
+  startCountdown();
+}
+startVoiceBtn.addEventListener("click", () => {
+  isRecording ? stopRecording() : startRecording();
+});
+
+generateBtn.addEventListener("click", async () => {
+  const text = activityInput.value.trim();
+  const style = styleSelect.value;
+  if (!text || style === "none") return;
+
+  let prompt = style === "photo" ? `Hyper-realistic photo of: ${text}` :
+               style === "anime" ? `Japanese anime style of: ${text}` :
+               `Painting in the style of ${style} of: ${text}`;
+
+  loadingIndicator.style.display = "flex";
+  generatedImage.style.display = "none";
+
+  try {
+    const response = await fetch("/api/generate", { // Use your backend route
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ prompt })
+    });
+    const data = await response.json();
+    if (data?.url) {
+      generatedImage.src = data.url;
+      generatedImage.style.display = "block";
+    } else {
+      alert("Image generation failed.");
+    }
+  } catch (err) {
+    console.error("Image generation error:", err);
+    alert("Error generating image.");
+  } finally {
+    loadingIndicator.style.display = "none";
+  }
+});
 </script>
 </body>
 </html>
