@@ -8,19 +8,18 @@
     @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap');
 
     body {
+      font-family: 'Share Tech Mono', monospace;
+      margin: 0;
       background-color: black;
       color: #00FF00;
-      font-family: 'Share Tech Mono', monospace;
       display: flex;
       justify-content: center;
       align-items: center;
       min-height: 100vh;
-      margin: 0;
-      padding: 20px;
     }
 
     .container {
-      width: 95%;
+      width: 90%;
       max-width: 500px;
       padding: 20px;
       border: 2px solid #00FF00;
@@ -39,6 +38,16 @@
       margin-bottom: 10px;
     }
 
+    .footer-bar {
+      display: flex;
+      justify-content: space-between;
+      width: 100%;
+      font-size: 0.75em;
+      padding: 0 5px;
+      margin-top: -5px;
+      margin-bottom: 10px;
+    }
+
     .dot-alert {
       width: 10px;
       height: 10px;
@@ -46,7 +55,6 @@
       background-color: red;
       animation: blink 1s infinite;
       display: none;
-      margin-bottom: 10px;
     }
 
     @keyframes blink {
@@ -55,31 +63,40 @@
     }
 
     textarea, select, button {
-      margin-top: 10px;
-      background: black;
+      width: 100%;
+      padding: 10px;
+      background-color: black;
       border: 2px solid #00FF00;
       color: #00FF00;
-      padding: 10px;
-      width: 100%;
-      max-width: 400px;
+      margin-bottom: 10px;
       font-family: 'Share Tech Mono', monospace;
     }
 
-    button.recording {
-      background-color: #FFFF00;
-      color: black;
+    .button-group {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 10px;
     }
 
-    #output {
-      margin-top: 20px;
-      border: 1px solid #00FF00;
-      max-width: 100%;
+    #loadingIndicator {
       display: none;
+      justify-content: center;
+      gap: 5px;
+      margin-top: 10px;
     }
 
-    #loading {
-      margin-top: 10px;
-      color: #00FF00;
+    .dot {
+      width: 6px;
+      height: 6px;
+      background-color: #00FF00;
+      border-radius: 50%;
+      animation: blink 1.2s infinite;
+    }
+
+    #generatedImage {
+      max-width: 100%;
+      border: 1px solid #00FF00;
+      margin-top: 20px;
       display: none;
     }
   </style>
@@ -87,17 +104,27 @@
 <body>
 <div class="container">
   <canvas id="waveform"></canvas>
+  <div class="footer-bar">
+    <div id="dateDisplay">2025/04/02</div>
+    <div id="countdownDisplay">00:60:00</div>
+  </div>
   <div class="dot-alert" id="redDot"></div>
-  <textarea id="activityInput" rows="4" placeholder="Describe your mood..."></textarea>
+  <textarea id="activityInput" rows="3" placeholder="Describe your mood..."></textarea>
   <select id="styleSelect">
     <option value="photo">Hyper-realistic Photo</option>
     <option value="anime">Japanese Anime Style</option>
     <option value="none">No Image</option>
   </select>
-  <button id="startVoice">Start Voice</button>
-  <button id="generate">Generate Image</button>
-  <div id="loading">⏳ Generating your image...</div>
-  <img id="output" />
+  <div class="button-group">
+    <button id="startVoice">🎤 Start Voice</button>
+    <button id="generate">🎨 Generate Image</button>
+  </div>
+  <div id="loadingIndicator">
+    <div class="dot"></div>
+    <div class="dot"></div>
+    <div class="dot"></div>
+  </div>
+  <img id="generatedImage" />
 </div>
 
 <script>
@@ -106,7 +133,7 @@ const ctx = canvas.getContext("2d");
 function drawGrid() {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
   ctx.strokeStyle = "#00FF00";
-  ctx.lineWidth = 0.8;
+  ctx.lineWidth = 0.5;
   for (let x = 0; x < canvas.width; x += 20) {
     ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, canvas.height); ctx.stroke();
   }
@@ -116,76 +143,80 @@ function drawGrid() {
 }
 window.addEventListener('load', drawGrid);
 
-const startVoiceBtn = document.getElementById("startVoice");
 const activityInput = document.getElementById("activityInput");
 const generateBtn = document.getElementById("generate");
 const styleSelect = document.getElementById("styleSelect");
-const output = document.getElementById("output");
-const loading = document.getElementById("loading");
+const generatedImage = document.getElementById("generatedImage");
+const loadingIndicator = document.getElementById("loadingIndicator");
+const startVoiceBtn = document.getElementById("startVoice");
+const countdownEl = document.getElementById("countdownDisplay");
 const redDot = document.getElementById("redDot");
 
-let recognition, countdown, isRecording = false, timeLeft = 60;
+let recognition, countdownInterval, isRecording = false, timeLeft = 60;
 
 function updateCountdown() {
-  if (timeLeft <= 10) redDot.style.display = 'block';
-  if (timeLeft <= 0) stopRecording();
-  timeLeft--;
+  countdownEl.textContent = `00:${String(timeLeft).padStart(2, '0')}:00`;
 }
 
 function startCountdown() {
   timeLeft = 60;
-  redDot.style.display = 'none';
-  countdown = setInterval(updateCountdown, 1000);
+  updateCountdown();
+  countdownInterval = setInterval(() => {
+    timeLeft--;
+    updateCountdown();
+    if (timeLeft <= 10) redDot.style.display = "block";
+    if (timeLeft <= 0) stopRecording();
+  }, 1000);
 }
 
 function stopCountdown() {
-  clearInterval(countdown);
-  redDot.style.display = 'none';
-}
-
-function startRecording() {
-  if (!('webkitSpeechRecognition' in window || 'SpeechRecognition' in window)) {
-    alert("Voice recording not supported on this browser."); return;
-  }
-  recognition = new (window.SpeechRecognition || window.webkitSpeechRecognition)();
-  recognition.lang = "en-US";
-  recognition.continuous = true;
-  recognition.interimResults = true;
-  let transcript = activityInput.value;
-  recognition.onresult = e => {
-    for (let i = e.resultIndex; i < e.results.length; ++i) {
-      transcript += ' ' + e.results[i][0].transcript;
-    }
-    activityInput.value = transcript.trim();
-  };
-  recognition.onend = stopRecording;
-  recognition.start();
-  isRecording = true;
-  startVoiceBtn.textContent = "Stop Voice";
-  startVoiceBtn.classList.add("recording");
-  startCountdown();
+  clearInterval(countdownInterval);
+  countdownEl.textContent = "00:60:00";
+  redDot.style.display = "none";
 }
 
 function stopRecording() {
   if (recognition) recognition.stop();
   isRecording = false;
-  startVoiceBtn.textContent = "Start Voice";
-  startVoiceBtn.classList.remove("recording");
   stopCountdown();
+  startVoiceBtn.textContent = "🎤 Start Voice";
 }
 
-startVoiceBtn.onclick = () => isRecording ? stopRecording() : startRecording();
+function startRecording() {
+  recognition = new (window.SpeechRecognition || window.webkitSpeechRecognition)();
+  recognition.lang = "en-US";
+  recognition.continuous = true;
+  recognition.interimResults = true;
+  let finalTranscript = activityInput.value;
+  recognition.onresult = (event) => {
+    for (let i = event.resultIndex; i < event.results.length; i++) {
+      finalTranscript += ' ' + event.results[i][0].transcript;
+    }
+    activityInput.value = finalTranscript.trim();
+  };
+  recognition.onerror = (e) => console.error("Speech error:", e);
+  recognition.onend = () => stopRecording();
+  recognition.start();
+  isRecording = true;
+  startVoiceBtn.textContent = "⏹ Stop Voice";
+  startCountdown();
+}
+
+startVoiceBtn.addEventListener("click", () => {
+  isRecording ? stopRecording() : startRecording();
+});
 
 generateBtn.addEventListener("click", async () => {
   const text = activityInput.value.trim();
   const style = styleSelect.value;
-  if (!text || style === "none") return alert("Please describe your mood and select a style.");
+  if (!text || style === "none") return alert("Enter a mood + select style");
 
   const prompt = style === "photo" ? `Hyper-realistic photo of: ${text}` :
-                  style === "anime" ? `Japanese anime style of: ${text}` : text;
+                 style === "anime" ? `Japanese anime style of: ${text}` :
+                 text;
 
-  loading.style.display = "block";
-  output.style.display = "none";
+  loadingIndicator.style.display = "flex";
+  generatedImage.style.display = "none";
 
   try {
     const res = await fetch("https://mood-into-art-backend.onrender.com/generate", {
@@ -194,17 +225,17 @@ generateBtn.addEventListener("click", async () => {
       body: JSON.stringify({ prompt })
     });
     const data = await res.json();
-    if (data.image) {
-      output.src = data.image;
-      output.style.display = "block";
+    if (data?.image) {
+      generatedImage.src = data.image;
+      generatedImage.style.display = "block";
     } else {
       alert("Image generation failed.");
     }
   } catch (err) {
     console.error("Backend error:", err);
-    alert("Image generation failed.");
+    alert("Image generation error.");
   } finally {
-    loading.style.display = "none";
+    loadingIndicator.style.display = "none";
   }
 });
 </script>
