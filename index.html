@@ -4,21 +4,19 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Mood Into Art</title>
-  
-  <!-- ✅ FIXED FONT LOAD -->
-  <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap" rel="stylesheet" />
 
   <style>
     body {
       background-color: black;
       color: #00FF00;
-      font-family: 'Helvetica', 'Arial', sans-serif;
+      font-family: Helvetica, Arial, sans-serif;
       display: flex;
       flex-direction: column;
       align-items: center;
       justify-content: center;
       min-height: 100vh;
       padding: 20px;
+      text-align: center;
     }
 
     textarea, select, button {
@@ -41,6 +39,13 @@
       max-width: 400px;
       display: none;
     }
+
+    #loading {
+      margin-top: 10px;
+      font-size: 14px;
+      color: #00FF00;
+      display: none;
+    }
   </style>
 </head>
 
@@ -55,16 +60,18 @@
   </select>
 
   <button id="generate">Generate Image</button>
-  <img id="output" alt="Generated art"/>
+  <div id="loading">⏳ Generating your image...</div>
+  <img id="output" alt="Generated artwork"/>
 
   <script>
     document.addEventListener("DOMContentLoaded", () => {
-      console.log("JavaScript is running ✅");
+      console.log("✅ JavaScript loaded");
 
       const generateBtn = document.getElementById("generate");
       const activityInput = document.getElementById("activityInput");
       const styleSelect = document.getElementById("styleSelect");
       const output = document.getElementById("output");
+      const loading = document.getElementById("loading");
 
       generateBtn.addEventListener("click", async () => {
         const text = activityInput.value.trim();
@@ -81,6 +88,9 @@
           ? `Japanese anime style of: ${text}`
           : text;
 
+        loading.style.display = "block";
+        output.style.display = "none";
+
         try {
           const res = await fetch("https://mood-into-art-backend.onrender.com/generate", {
             method: "POST",
@@ -94,13 +104,15 @@
             output.src = data.image;
             output.style.display = "block";
           } else {
-            console.error("Backend response:", data);
+            console.error("Backend error:", data);
             alert("Image generation failed.");
           }
 
         } catch (err) {
           console.error("Fetch error:", err);
           alert("There was an error generating the image.");
+        } finally {
+          loading.style.display = "none";
         }
       });
     });
