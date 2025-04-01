@@ -1,8 +1,8 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>MIA (Mood Into Art)</title>
   <style>
     @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap');
@@ -58,7 +58,6 @@
       color: #00FF00;
       margin-bottom: 10px;
       resize: vertical;
-      font-family: 'Share Tech Mono', monospace;
     }
 
     .button-group {
@@ -75,12 +74,7 @@
       color: #00FF00;
       padding: 10px;
       cursor: pointer;
-      font-family: 'Share Tech Mono', monospace;
-    }
-
-    .button.recording {
-      background-color: #FFFF00;
-      color: black;
+      font-family: Arial, sans-serif;
     }
 
     #loadingIndicator {
@@ -119,12 +113,11 @@
 </head>
 <body>
 <div class="container">
-  <canvas id="waveform" width="460" height="80"></canvas>
+  <canvas id="waveform"></canvas>
   <div class="footer-bar">
     <div id="dateDisplay">2025/04/01</div>
     <div id="countdownDisplay">00:60:00</div>
   </div>
-  <div class="dot-alert" id="redDot" style="display: none;"></div>
   <textarea id="activityInput" rows="4" placeholder="Describe your mood..."></textarea>
   <select id="styleSelect">
     <option value="photo">Hyper-realistic Photo</option>
@@ -148,7 +141,10 @@
     <button class="button" id="saveImage">Save</button>
   </div>
   <div id="loadingIndicator">
-    <div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div>
+    <div class="dot"></div>
+    <div class="dot"></div>
+    <div class="dot"></div>
+    <div class="dot"></div>
   </div>
   <img id="generatedImage" />
 </div>
@@ -170,72 +166,12 @@ function drawGrid() {
 }
 window.addEventListener('load', drawGrid);
 
-const startVoiceBtn = document.getElementById("startVoice");
-const activityInput = document.getElementById("activityInput");
-const countdownEl = document.getElementById("countdownDisplay");
-const generateBtn = document.getElementById("generate");
-const styleSelect = document.getElementById("styleSelect");
-const generatedImage = document.getElementById("generatedImage");
-const loadingIndicator = document.getElementById("loadingIndicator");
+document.getElementById("generate").addEventListener("click", async () => {
+  const text = document.getElementById("activityInput").value.trim();
+  const style = document.getElementById("styleSelect").value;
+  const loadingIndicator = document.getElementById("loadingIndicator");
+  const generatedImage = document.getElementById("generatedImage");
 
-let recognition, countdownInterval, isRecording = false, timeLeft = 60;
-
-function updateCountdown() {
-  const sec = String(timeLeft).padStart(2, '0');
-  countdownEl.textContent = `00:${sec}:00`;
-}
-function startCountdown() {
-  timeLeft = 60;
-  updateCountdown();
-  countdownInterval = setInterval(() => {
-    timeLeft--;
-    updateCountdown();
-    if (timeLeft <= 0) stopRecording();
-  }, 1000);
-}
-function stopCountdown() {
-  clearInterval(countdownInterval);
-  countdownEl.textContent = "00:60:00";
-}
-function stopRecording() {
-  if (recognition) recognition.stop();
-  isRecording = false;
-  stopCountdown();
-  startVoiceBtn.textContent = "Start Voice";
-  startVoiceBtn.classList.remove("recording");
-}
-function startRecording() {
-  if (!('webkitSpeechRecognition' in window || 'SpeechRecognition' in window)) {
-    alert("Voice recording not supported on this browser.");
-    return;
-  }
-  recognition = new (window.SpeechRecognition || window.webkitSpeechRecognition)();
-  recognition.lang = "en-US";
-  recognition.continuous = true;
-  recognition.interimResults = true;
-  let finalTranscript = activityInput.value;
-  recognition.onresult = (event) => {
-    for (let i = event.resultIndex; i < event.results.length; i++) {
-      finalTranscript += ' ' + event.results[i][0].transcript;
-    }
-    activityInput.value = finalTranscript.trim();
-    activityInput.scrollTop = activityInput.scrollHeight;
-  };
-  recognition.onerror = (e) => console.error("Speech error:", e);
-  recognition.onend = () => stopRecording();
-  recognition.start();
-  isRecording = true;
-  startVoiceBtn.textContent = "Stop Voice";
-  startVoiceBtn.classList.add("recording");
-  startCountdown();
-}
-startVoiceBtn.addEventListener("click", () => {
-  isRecording ? stopRecording() : startRecording();
-});
-
-generateBtn.addEventListener("click", async () => {
-  const text = activityInput.value.trim();
-  const style = styleSelect.value;
   if (!text || style === "none") return;
 
   let prompt = style === "photo" ? `Hyper-realistic photo of: ${text}` :
@@ -246,22 +182,21 @@ generateBtn.addEventListener("click", async () => {
   generatedImage.style.display = "none";
 
   try {
-    const response = await fetch("https://mood-into-art-backend.onrender.com/api/generate", {
+    const response = await fetch("https://mood-into-art-backend.onrender.com/generate", {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json"
-      },
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ prompt })
     });
     const data = await response.json();
-    if (data?.url) {
-      generatedImage.src = data.url;
+
+    if (data?.image) {
+      generatedImage.src = data.image;
       generatedImage.style.display = "block";
     } else {
       alert("Image generation failed.");
     }
   } catch (err) {
-    console.error("Image generation error:", err);
+    console.error("Error:", err);
     alert("Error generating image.");
   } finally {
     loadingIndicator.style.display = "none";
