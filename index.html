@@ -6,7 +6,7 @@
   <title>MIA (Mood Into Art)</title>
   <style>
     body {
-      font-family: Arial, sans-serif;
+      font-family: Helvetica, Arial, sans-serif;
       margin: 0;
       background-color: black;
       color: #00FF00;
@@ -32,7 +32,7 @@
       width: 100%;
       height: 160px;
       background-color: black;
-      border: 1px solid #00FF00;
+      border: 2px solid #00FF00;
       margin-bottom: 10px;
       display: block;
     }
@@ -79,7 +79,13 @@
       color: #00FF00;
       margin-bottom: 10px;
       resize: vertical;
-      text-align: center;
+    }
+
+    textarea {
+      overflow-y: auto;
+      overflow-x: hidden;
+      white-space: pre-wrap;
+      word-wrap: break-word;
     }
 
     .button-group {
@@ -96,7 +102,7 @@
       color: #00FF00;
       padding: 10px;
       cursor: pointer;
-      font-family: Arial, sans-serif;
+      font-family: Helvetica, Arial, sans-serif;
     }
 
     .button.recording {
@@ -172,100 +178,21 @@
   <div id="logHistory"></div>
 </div>
 <script>
+  const textarea = document.getElementById("activityInput");
   const dateDisplay = document.getElementById("dateDisplay");
+
+  textarea.addEventListener("input", () => {
+    textarea.scrollTop = textarea.scrollHeight;
+  });
+
   function updateDateTime() {
     const now = new Date();
-    dateDisplay.textContent = now.toLocaleString("en-CA", {
-      year: "numeric",
-      month: "2-digit",
-      day: "2-digit",
-      hour: "2-digit",
-      minute: "2-digit",
-      second: "2-digit"
-    });
+    const date = now.toLocaleDateString('en-CA');
+    const time = now.toLocaleTimeString('en-GB');
+    dateDisplay.textContent = `${date} ${time}`;
   }
   setInterval(updateDateTime, 1000);
   updateDateTime();
-
-  document.getElementById("redo").addEventListener("click", () => {
-    document.getElementById("activityInput").value = "";
-  });
-
-  const waveform = document.getElementById("waveform");
-  const ctx = waveform.getContext("2d");
-  waveform.width = waveform.clientWidth;
-  waveform.height = waveform.clientHeight;
-
-  let audioContext, analyser, dataArray, source, animationId, recognition, isRecording = false;
-
-  async function startMic() {
-    audioContext = new (window.AudioContext || window.webkitAudioContext)();
-    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-    source = audioContext.createMediaStreamSource(stream);
-    analyser = audioContext.createAnalyser();
-    analyser.fftSize = 512;
-    dataArray = new Uint8Array(analyser.frequencyBinCount);
-    source.connect(analyser);
-    drawWaveform();
-  }
-
-  function drawWaveform() {
-    ctx.clearRect(0, 0, waveform.width, waveform.height);
-    ctx.strokeStyle = '#00FF00';
-    ctx.lineWidth = 1.2;
-    analyser.getByteTimeDomainData(dataArray);
-    ctx.beginPath();
-    const mid = waveform.height / 2;
-    let sliceWidth = waveform.width / dataArray.length;
-    let x = 0;
-    for (let i = 0; i < dataArray.length; i++) {
-      let y = mid + ((dataArray[i] - 128) * 0.5);
-      if (i === 0) ctx.moveTo(x, y);
-      else ctx.lineTo(x, y);
-      x += sliceWidth;
-    }
-    ctx.stroke();
-    animationId = requestAnimationFrame(drawWaveform);
-  }
-
-  const startVoiceBtn = document.getElementById("startVoice");
-
-  startVoiceBtn.addEventListener("click", async () => {
-    if (!('webkitSpeechRecognition' in window || 'SpeechRecognition' in window)) {
-      alert("Speech recognition not supported on this browser.");
-      return;
-    }
-
-    if (!isRecording) {
-      await startMic();
-      const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-      recognition = new SpeechRecognition();
-      recognition.lang = "en-US";
-      recognition.continuous = true;
-      recognition.interimResults = true;
-      let finalTranscript = document.getElementById("activityInput").value;
-      recognition.onresult = (event) => {
-        for (let i = event.resultIndex; i < event.results.length; i++) {
-          finalTranscript += ' ' + event.results[i][0].transcript;
-        }
-        document.getElementById("activityInput").value = finalTranscript.trim();
-      };
-      recognition.onerror = (e) => console.error("Speech error:", e);
-      recognition.onend = () => {
-        startVoiceBtn.classList.remove("recording");
-        startVoiceBtn.textContent = "Start Voice";
-        isRecording = false;
-      };
-      recognition.start();
-      startVoiceBtn.classList.add("recording");
-      startVoiceBtn.textContent = "Stop Voice";
-      isRecording = true;
-    } else {
-      recognition.stop();
-      audioContext.close();
-      cancelAnimationFrame(animationId);
-    }
-  });
 </script>
 </body>
 </html>
