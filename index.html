@@ -28,11 +28,19 @@
       align-items: center;
     }
 
-    canvas#waveform, canvas#grid {
+    canvas#grid {
       width: 100%;
       height: 80px;
       background-color: black;
       border: 1px solid #00FF00;
+      margin-bottom: 10px;
+    }
+
+    canvas#waveform {
+      width: 100%;
+      height: 80px;
+      background-color: black;
+      border: none;
       margin-bottom: 10px;
     }
 
@@ -191,36 +199,84 @@
     document.getElementById("activityInput").value = "";
   });
 
+  const grid = document.getElementById("grid");
+  const gridCtx = grid.getContext("2d");
+  function drawGrid() {
+    grid.width = grid.clientWidth;
+    grid.height = grid.clientHeight;
+    const w = grid.width;
+    const h = grid.height;
+    gridCtx.clearRect(0, 0, w, h);
+    gridCtx.strokeStyle = 'rgba(0, 255, 0, 0.6)';
+    gridCtx.lineWidth = 1;
+    for (let i = 0; i <= w; i += w / 20) {
+      gridCtx.beginPath();
+      gridCtx.moveTo(i, 0);
+      gridCtx.lineTo(i, h);
+      gridCtx.stroke();
+    }
+    for (let j = 0; j <= h; j += h / 12) {
+      gridCtx.beginPath();
+      gridCtx.moveTo(0, j);
+      gridCtx.lineTo(w, j);
+      gridCtx.stroke();
+    }
+  }
+  window.addEventListener('load', drawGrid);
+  window.addEventListener('resize', drawGrid);
+
   const waveform = document.getElementById("waveform");
   const ctx = waveform.getContext("2d");
-  let phase = 0;
-  function drawWaveform() {
+  function drawFlatLine() {
     waveform.width = waveform.clientWidth;
     waveform.height = waveform.clientHeight;
     ctx.clearRect(0, 0, waveform.width, waveform.height);
     ctx.strokeStyle = '#00FF00';
-    ctx.lineWidth = 1;
+    ctx.lineWidth = 2;
     ctx.beginPath();
-    const amplitude = waveform.height / 4;
-    const frequency = 0.1;
-    for (let x = 0; x < waveform.width; x++) {
-      const y = waveform.height / 2 + amplitude * Math.sin((x + phase) * frequency);
-      ctx.lineTo(x, y);
-    }
+    ctx.moveTo(0, waveform.height / 2);
+    ctx.lineTo(waveform.width, waveform.height / 2);
     ctx.stroke();
-    phase += 2;
-    requestAnimationFrame(drawWaveform);
+    requestAnimationFrame(drawFlatLine);
   }
-  drawWaveform();
+  drawFlatLine();
 
   const startVoiceBtn = document.getElementById("startVoice");
   let isRecording = false;
+  let recognition;
 
   startVoiceBtn.addEventListener("click", () => {
-    isRecording = !isRecording;
-    startVoiceBtn.classList.toggle("recording", isRecording);
-    startVoiceBtn.textContent = isRecording ? "Stop Voice" : "Start Voice";
-    // Note: this is where you would hook into actual speech recognition logic.
+    if (!('webkitSpeechRecognition' in window || 'SpeechRecognition' in window)) {
+      alert("Speech recognition not supported on this browser.");
+      return;
+    }
+
+    if (!isRecording) {
+      const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+      recognition = new SpeechRecognition();
+      recognition.lang = "en-US";
+      recognition.continuous = true;
+      recognition.interimResults = true;
+      let finalTranscript = document.getElementById("activityInput").value;
+      recognition.onresult = (event) => {
+        for (let i = event.resultIndex; i < event.results.length; i++) {
+          finalTranscript += ' ' + event.results[i][0].transcript;
+        }
+        document.getElementById("activityInput").value = finalTranscript.trim();
+      };
+      recognition.onerror = (e) => console.error("Speech error:", e);
+      recognition.onend = () => {
+        startVoiceBtn.classList.remove("recording");
+        startVoiceBtn.textContent = "Start Voice";
+        isRecording = false;
+      };
+      recognition.start();
+      startVoiceBtn.classList.add("recording");
+      startVoiceBtn.textContent = "Stop Voice";
+      isRecording = true;
+    } else {
+      recognition.stop();
+    }
   });
 </script>
 </body>
