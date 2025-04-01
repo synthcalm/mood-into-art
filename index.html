@@ -99,8 +99,8 @@
     }
 
     .button.recording {
-      background-color: #FFFF00;
-      color: black;
+      background-color: red;
+      color: white;
     }
 
     #loadingIndicator {
@@ -191,7 +191,6 @@
     document.getElementById("activityInput").value = "";
   });
 
-  // Add a dummy waveform scope to make it visually dynamic
   const waveform = document.getElementById("waveform");
   const ctx = waveform.getContext("2d");
   let phase = 0;
@@ -213,6 +212,16 @@
     requestAnimationFrame(drawWaveform);
   }
   drawWaveform();
+
+  const startVoiceBtn = document.getElementById("startVoice");
+  let isRecording = false;
+
+  startVoiceBtn.addEventListener("click", () => {
+    isRecording = !isRecording;
+    startVoiceBtn.classList.toggle("recording", isRecording);
+    startVoiceBtn.textContent = isRecording ? "Stop Voice" : "Start Voice";
+    // Note: this is where you would hook into actual speech recognition logic.
+  });
 </script>
 </body>
 </html>
