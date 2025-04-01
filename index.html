@@ -173,50 +173,67 @@
   <div id="logHistory"></div>
 </div>
 <script>
-  document.getElementById("generate").addEventListener("click", async () => {
-    const input = document.getElementById("activityInput").value.trim();
-    const style = document.getElementById("styleSelect").value;
-    const image = document.getElementById("generatedImage");
-    const loading = document.getElementById("loadingIndicator");
-    const log = document.getElementById("logHistory");
+  const grid = document.getElementById('grid');
+  const gridCtx = grid.getContext('2d');
+  function drawGrid() {
+    grid.width = grid.clientWidth;
+    grid.height = grid.clientHeight;
+    const w = grid.width;
+    const h = grid.height;
+    gridCtx.clearRect(0, 0, w, h);
+    gridCtx.strokeStyle = 'rgba(0, 255, 0, 0.3)';
+    gridCtx.lineWidth = 0.3;
+    for (let i = 0; i <= w; i += w / 20) {
+      gridCtx.beginPath();
+      gridCtx.moveTo(i, 0);
+      gridCtx.lineTo(i, h);
+      gridCtx.stroke();
+    }
+    for (let j = 0; j <= h; j += h / 12) {
+      gridCtx.beginPath();
+      gridCtx.moveTo(0, j);
+      gridCtx.lineTo(w, j);
+      gridCtx.stroke();
+    }
+  }
+  window.addEventListener('load', drawGrid);
+  window.addEventListener('resize', drawGrid);
 
-    if (!input || style === "none") {
-      alert("Please describe your mood and select a style.");
+  let recognition, isRecording = false;
+  const startBtn = document.getElementById("startVoice");
+  const activityInput = document.getElementById("activityInput");
+  const redDot = document.getElementById("redDot");
+
+  startBtn.addEventListener("click", () => {
+    if (!('webkitSpeechRecognition' in window || 'SpeechRecognition' in window)) {
+      alert("Speech recognition not supported in this browser.");
       return;
     }
-
-    const prompt =
-      style === "photo" ? `Hyper-realistic photo of: ${input}` :
-      style === "anime" ? `Japanese anime style of: ${input}` :
-      `Painting in the style of ${style} of: ${input}`;
-
-    loading.style.display = "flex";
-    image.style.display = "none";
-
-    try {
-      const response = await fetch("https://mood-into-art-backend.onrender.com/generate", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({ prompt })
-      });
-
-      const data = await response.json();
-
-      if (data?.image) {
-        image.src = data.image;
-        image.style.display = "block";
-        const timestamp = new Date().toLocaleString();
-        log.innerHTML += `<p>[${timestamp}] ${prompt}</p>`;
-      } else {
-        alert("Image generation failed.");
-      }
-    } catch (err) {
-      console.error("Error generating image:", err);
-      alert("Failed to reach the image generation service.");
-    } finally {
-      loading.style.display = "none";
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!isRecording) {
+      recognition = new SpeechRecognition();
+      recognition.continuous = true;
+      recognition.interimResults = true;
+      recognition.lang = "en-US";
+      let finalTranscript = activityInput.value;
+      recognition.onresult = (e) => {
+        for (let i = e.resultIndex; i < e.results.length; i++) {
+          finalTranscript += ' ' + e.results[i][0].transcript;
+        }
+        activityInput.value = finalTranscript.trim();
+        activityInput.scrollTop = activityInput.scrollHeight;
+      };
+      recognition.start();
+      startBtn.textContent = "Stop Voice";
+      startBtn.classList.add("recording");
+      redDot.style.display = "block";
+      isRecording = true;
+    } else {
+      recognition.stop();
+      startBtn.textContent = "Start Voice";
+      startBtn.classList.remove("recording");
+      redDot.style.display = "none";
+      isRecording = false;
     }
   });
 </script>
