@@ -232,19 +232,15 @@
         }
 
         async function startMic() {
-            console.log("startMic called");
             try {
                 audioContext = new (window.AudioContext || window.webkitAudioContext)();
-                console.log("AudioContext created");
                 const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-                console.log("getUserMedia successful");
                 source = audioContext.createMediaStreamSource(stream);
                 analyser = audioContext.createAnalyser();
                 analyser.fftSize = 2048;
                 dataArray = new Uint8Array(analyser.fftSize);
                 source.connect(analyser);
                 drawCombined();
-                console.log("startMic finished");
             } catch (error) {
                 console.error("Error in startMic:", error);
             }
@@ -268,71 +264,65 @@
             document.getElementById('activityInput').value = '';
         });
 
-        // SpeechRecognition for STT
+        // Google Cloud STT via Render backend
         const startVoiceBtn = document.getElementById('startVoice');
         const activityInput = document.getElementById('activityInput');
-        let recognition;
-        let isRecording = false;
+        let recorder;
+        let audioChunks = [];
 
         startVoiceBtn.addEventListener('click', async () => {
-            console.log("Start Voice button clicked");
-            try{
-                await startMic();
-                console.log("startMic completed");
-                const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-                if (!SpeechRecognition) {
-                    alert('Speech recognition not supported in this browser.');
-                    return;
-                }
+            if (!recorder) {
+                try {
+                    await startMic(); // Start microphone visualization
+                    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                    recorder = new MediaRecorder(stream, { mimeType: 'audio/wav' });
 
-                if (!isRecording) {
-                    recognition = new SpeechRecognition();
-                    recognition.continuous = true;
-                    recognition.interimResults = true;
-                    recognition.lang = 'en-US';
+                    recorder.ondataavailable = (event) => {
+                        audioChunks.push(event.data);
+                    };
 
-                    recognition.onresult = (event) => {
-                        let transcript = '';
-                        for (let i = 0; i < event.results.length; i++) {
-                            transcript += event.results[i][0].transcript + ' ';
+                    recorder.onstop = async () => {
+                        const audioBlob = new Blob(audioChunks, { type: 'audio/wav' });
+                        const audioBuffer = await audioBlob.arrayBuffer();
+                        const audioBase64 = btoa(new Uint8Array(audioBuffer).reduce((data, byte) => data + String.fromCharCode(byte), ''));
+
+                        try {
+                            const response = await fetch('https://mood-into-art-backend.onrender.com/transcribe', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ audioData: audioBase64 }),
+                            });
+
+                            const data = await response.json();
+                            if (data.transcription) {
+                                activityInput.value = data.transcription;
+                            } else {
+                                alert('Transcription failed: ' + (data.error || 'Unknown error'));
+                            }
+                        } catch (error) {
+                            console.error('Error transcribing:', error);
+                            alert('An error occurred during transcription.');
                         }
-                        activityInput.value = transcript.trim();
+
+                        audioChunks = [];
+                        recorder = null;
+                        startVoiceBtn.textContent = 'Start Voice';
+                        startVoiceBtn.classList.remove('recording');
+                        document.getElementById('redDot').style.display = 'none';
                     };
 
-                    recognition.onerror = (event) => {
-                        console.error('Speech recognition error:', event.error);
-                        if (event.error === 'no-speech') {
-                            activityInput.value = 'No speech detected.';
-                        } else if (event.error === 'aborted' || event.error === 'network') {
-                            recognition.stop();
-                            isRecording = false;
-                            startVoiceBtn.textContent = 'Start Voice';
-                            startVoiceBtn.classList.remove('recording');
-                            document.getElementById('redDot').style.display = 'none';
-                        }
-                    };
-
-                    recognition.onend = () => {
-                        if (isRecording) recognition.start();
-                    };
-
-                    recognition.start();
+                    recorder.start();
                     startVoiceBtn.textContent = 'Stop Voice';
                     startVoiceBtn.classList.add('recording');
                     document.getElementById('redDot').style.display = 'block';
-                    isRecording = true;
-                } else {
-                    recognition.stop();
-                    audioContext.close();
-                    cancelAnimationFrame(animationId);
-                    startVoiceBtn.textContent = 'Start Voice';
-                    startVoiceBtn.classList.remove('recording');
-                    document.getElementById('redDot').style.display = 'none';
-                    isRecording = false;
+                } catch (error) {
+                    console.error('Error starting recording:', error);
+                    alert('Could not start recording. Please check microphone permissions.');
                 }
-            }
-            catch(error){
-                console.error("error in start voice click", error)
+            } else {
+                recorder.stop();
+                audioContext.close();
+                cancelAnimationFrame(animationId);
             }
         });
 
