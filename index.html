@@ -28,9 +28,9 @@
       align-items: center;
     }
 
-    canvas#waveform, canvas#grid {
+    canvas#waveform {
       width: 100%;
-      height: 80px;
+      height: 160px;
       background-color: black;
       border: 1px solid #00FF00;
       margin-bottom: 10px;
@@ -134,27 +134,29 @@
 </head>
 <body>
 <div class="container">
-  <canvas id="grid"></canvas>
   <canvas id="waveform"></canvas>
   <div class="footer-bar">
     <div id="dateDisplay"></div>
-    <div id="countdownDisplay">00:60:00</div>
+    <div id="countdownDisplay">00:30:00</div>
   </div>
   <div class="dot-alert" id="redDot"></div>
   <textarea id="activityInput" rows="4" placeholder="Describe your mood..."></textarea>
   <select id="styleSelect">
     <option value="photo">Hyper-realistic Photo</option>
     <option value="anime">Japanese Anime Style</option>
-    <option value="Rembrandt">Rembrandt</option>
-    <option value="Picasso">Picasso</option>
-    <option value="Van Gogh">Van Gogh</option>
-    <option value="Monet">Monet</option>
-    <option value="Matisse">Matisse</option>
-    <option value="Klimt">Klimt</option>
-    <option value="Hokusai">Hokusai</option>
-    <option value="Dali">Dali</option>
-    <option value="Warhol">Warhol</option>
-    <option value="Basquiat">Basquiat</option>
+    <option value="abstract">Abstract</option>
+    <option value="surrealism">Surrealism</option>
+    <option value="post-modern">Post-modern</option>
+    <option value="cyberpunk">Cyberpunk</option>
+    <option value="arabic-calligraphy">Arabic Calligraphy (13th~18th century with poetry)</option>
+    <option value="chinese-calligraphy">Chinese Calligraphy (classic wisdom)</option>
+    <option value="japanese-calligraphy">Japanese Calligraphy (classic wisdom)</option>
+    <option value="marvel">Marvel Comic</option>
+    <option value="art-deco">Art Deco</option>
+    <option value="impressionist">Impressionist</option>
+    <option value="pop-art">Pop Art</option>
+    <option value="digital-painting">Digital Painting</option>
+    <option value="minimalism">Minimalism</option>
     <option value="none">No Image</option>
   </select>
   <div class="button-group">
@@ -173,43 +175,59 @@
   <div id="logHistory"></div>
 </div>
 <script>
-  // Grid
-  const grid = document.getElementById('grid');
-  const gridCtx = grid.getContext('2d');
-  function drawGrid() {
-    grid.width = grid.clientWidth;
-    grid.height = grid.clientHeight;
-    const w = grid.width;
-    const h = grid.height;
-    gridCtx.clearRect(0, 0, w, h);
-    gridCtx.strokeStyle = 'rgba(0, 255, 255, 0.3)';
-    gridCtx.lineWidth = 0.3;
-    for (let i = 0; i <= w; i += w / 20) {
-      gridCtx.beginPath();
-      gridCtx.moveTo(i, 0);
-      gridCtx.lineTo(i, h);
-      gridCtx.stroke();
-    }
-    for (let j = 0; j <= h; j += h / 12) {
-      gridCtx.beginPath();
-      gridCtx.moveTo(0, j);
-      gridCtx.lineTo(w, j);
-      gridCtx.stroke();
-    }
-    gridCtx.strokeStyle = 'rgba(0, 255, 255, 0.5)';
-    gridCtx.lineWidth = 0.5;
-    gridCtx.beginPath();
-    gridCtx.moveTo(0, h / 2);
-    gridCtx.lineTo(w, h / 2);
-    gridCtx.stroke();
-  }
-  window.addEventListener('load', drawGrid);
-  window.addEventListener('resize', drawGrid);
-
-  // Waveform
+  // Grid is now part of waveform canvas
   const waveform = document.getElementById('waveform');
   const waveformCtx = waveform.getContext('2d');
   let audioContext, analyser, dataArray, source, animationId;
+
+  function drawGridAndWaveform() {
+    waveform.width = waveform.clientWidth;
+    waveform.height = waveform.clientHeight;
+    const w = waveform.width;
+    const h = waveform.height;
+    waveformCtx.clearRect(0, 0, w, h);
+
+    waveformCtx.strokeStyle = 'rgba(0, 255, 255, 0.3)';
+    waveformCtx.lineWidth = 0.3;
+    for (let i = 0; i <= w; i += w / 20) {
+      waveformCtx.beginPath();
+      waveformCtx.moveTo(i, 0);
+      waveformCtx.lineTo(i, h);
+      waveformCtx.stroke();
+    }
+    for (let j = 0; j <= h; j += h / 12) {
+      waveformCtx.beginPath();
+      waveformCtx.moveTo(0, j);
+      waveformCtx.lineTo(w, j);
+      waveformCtx.stroke();
+    }
+    waveformCtx.strokeStyle = 'rgba(0, 255, 255, 0.5)';
+    waveformCtx.lineWidth = 0.5;
+    waveformCtx.beginPath();
+    waveformCtx.moveTo(0, h / 2);
+    waveformCtx.lineTo(w, h / 2);
+    waveformCtx.stroke();
+
+    if (analyser) {
+      analyser.getByteTimeDomainData(dataArray);
+      waveformCtx.strokeStyle = 'cyan';
+      waveformCtx.lineWidth = 1;
+      waveformCtx.beginPath();
+      let sliceWidth = w / dataArray.length;
+      let x = 0;
+      for (let i = 0; i < dataArray.length; i++) {
+        let v = dataArray[i] / 128.0;
+        let y = v * h / 2;
+        if (i === 0) waveformCtx.moveTo(x, y);
+        else waveformCtx.lineTo(x, y);
+        x += sliceWidth;
+      }
+      waveformCtx.lineTo(w, h / 2);
+      waveformCtx.stroke();
+    }
+
+    animationId = requestAnimationFrame(drawGridAndWaveform);
+  }
 
   async function startMic() {
     audioContext = new (window.AudioContext || window.webkitAudioContext)();
@@ -219,157 +237,8 @@
     analyser.fftSize = 2048;
     dataArray = new Uint8Array(analyser.fftSize);
     source.connect(analyser);
-    drawWaveform();
+    drawGridAndWaveform();
   }
-
-  function drawWaveform() {
-    waveform.width = waveform.clientWidth;
-    waveform.height = waveform.clientHeight;
-    waveformCtx.clearRect(0, 0, waveform.width, waveform.height);
-    analyser.getByteTimeDomainData(dataArray);
-    waveformCtx.strokeStyle = 'cyan';
-    waveformCtx.lineWidth = 1;
-    waveformCtx.beginPath();
-    let sliceWidth = waveform.width / dataArray.length;
-    let x = 0;
-    for (let i = 0; i < dataArray.length; i++) {
-      let v = dataArray[i] / 128.0;
-      let y = v * waveform.height / 2;
-      if (i === 0) waveformCtx.moveTo(x, y);
-      else waveformCtx.lineTo(x, y);
-      x += sliceWidth;
-    }
-    waveformCtx.lineTo(waveform.width, waveform.height / 2);
-    waveformCtx.stroke();
-    animationId = requestAnimationFrame(drawWaveform);
-  }
-
-  // Date/Time
-  function updateDateTime() {
-    document.getElementById('dateDisplay').textContent = new Date().toLocaleString();
-  }
-  setInterval(updateDateTime, 1000);
-  updateDateTime();
-
-  // Redo
-  document.getElementById('redo').addEventListener('click', () => {
-    document.getElementById('activityInput').value = '';
-  });
-
-  // SpeechRecognition for STT
-  const startVoiceBtn = document.getElementById('startVoice');
-  const activityInput = document.getElementById('activityInput');
-  let recognition;
-  let isRecording = false;
-
-  startVoiceBtn.addEventListener('click', async () => {
-    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-    if (!SpeechRecognition) {
-      alert('Speech recognition not supported in this browser.');
-      return;
-    }
-
-    if (!isRecording) {
-      // Start recording
-      await startMic();
-      recognition = new SpeechRecognition();
-      recognition.continuous = true;
-      recognition.interimResults = true;
-      recognition.lang = 'en-US';
-
-      recognition.onresult = (event) => {
-        let transcript = '';
-        for (let i = 0; i < event.results.length; i++) {
-          transcript += event.results[i][0].transcript + ' ';
-        }
-        activityInput.value = transcript.trim();
-      };
-
-      recognition.onerror = (event) => {
-        console.error('Speech recognition error:', event.error);
-        if (event.error === 'no-speech') {
-          activityInput.value = 'No speech detected.';
-        } else if (event.error === 'aborted' || event.error === 'network') {
-          recognition.stop();
-          isRecording = false;
-          startVoiceBtn.textContent = 'Start Voice';
-          startVoiceBtn.classList.remove('recording');
-          document.getElementById('redDot').style.display = 'none';
-        }
-      };
-
-      recognition.onend = () => {
-        if (isRecording) recognition.start();
-      };
-
-      recognition.start();
-      startVoiceBtn.textContent = 'Stop Voice';
-      startVoiceBtn.classList.add('recording');
-      document.getElementById('redDot').style.display = 'block';
-      isRecording = true;
-    } else {
-      // Stop recording
-      recognition.stop();
-      audioContext.close();
-      cancelAnimationFrame(animationId);
-      startVoiceBtn.textContent = 'Start Voice';
-      startVoiceBtn.classList.remove('recording');
-      document.getElementById('redDot').style.display = 'none';
-      isRecording = false;
-    }
-  });
-
-  // Generate with Stability AI via Render backend
-  document.getElementById('generate').addEventListener('click', async () => {
-    const input = document.getElementById('activityInput').value.trim();
-    const style = document.getElementById('styleSelect').value;
-    const loading = document.getElementById('loadingIndicator');
-    const output = document.getElementById('generatedImage');
-    const log = document.getElementById('logHistory');
-    if (!input || style === 'none') {
-      alert('Please enter a mood description and choose a style.');
-      return;
-    }
-    const prompt = style === 'photo' ? `Hyper-realistic photo of ${input}` :
-                  style === 'anime' ? `Japanese anime illustration of ${input}` :
-                  `${input} in the style of ${style}`;
-    loading.style.display = 'flex';
-    output.style.display = 'none';
-    try {
-      const response = await fetch('https://mood-into-art-backend.onrender.com/generate', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ prompt })
-      });
-      const data = await response.json();
-      if (data.image) {
-        output.src = data.image;
-        output.style.display = 'block';
-        const timestamp = new Date().toLocaleString();
-        log.innerHTML += `<p>${timestamp}: ${prompt}</p>`;
-      } else {
-        alert('Image generation failed: ' + (data.error || 'Unknown error'));
-      }
-    } catch (err) {
-      alert('An error occurred: ' + err.message);
-      console.error(err);
-    } finally {
-      loading.style.display = 'none';
-    }
-  });
-
-  // Save Image
-  document.getElementById('saveImage').addEventListener('click', () => {
-    const output = document.getElementById('generatedImage');
-    if (output.src && output.style.display !== 'none') {
-      const link = document.createElement('a');
-      link.href = output.src;
-      link.download = 'mood_into_art_image.png';
-      link.click();
-    } else {
-      alert('No image to save. Generate an image first.');
-    }
-  });
 </script>
 </body>
 </html>
