@@ -232,14 +232,22 @@
         }
 
         async function startMic() {
-            audioContext = new (window.AudioContext || window.webkitAudioContext)();
-            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-            source = audioContext.createMediaStreamSource(stream);
-            analyser = audioContext.createAnalyser();
-            analyser.fftSize = 2048;
-            dataArray = new Uint8Array(analyser.fftSize);
-            source.connect(analyser);
-            drawCombined();
+            console.log("startMic called");
+            try {
+                audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                console.log("AudioContext created");
+                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                console.log("getUserMedia successful");
+                source = audioContext.createMediaStreamSource(stream);
+                analyser = audioContext.createAnalyser();
+                analyser.fftSize = 2048;
+                dataArray = new Uint8Array(analyser.fftSize);
+                source.connect(analyser);
+                drawCombined();
+                console.log("startMic finished");
+            } catch (error) {
+                console.error("Error in startMic:", error);
+            }
         }
 
         window.addEventListener('load', drawCombined);
@@ -267,60 +275,64 @@
         let isRecording = false;
 
         startVoiceBtn.addEventListener('click', async () => {
-            console.log("startVoiceBtn clicked");
-            const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-            if (!SpeechRecognition) {
-                alert('Speech recognition not supported in this browser.');
-                return;
-            }
-
-            if (!isRecording) {
-                // Start recording
+            console.log("Start Voice button clicked");
+            try{
                 await startMic();
-                recognition = new SpeechRecognition();
-                recognition.continuous = true;
-                recognition.interimResults = true;
-                recognition.lang = 'en-US';
+                console.log("startMic completed");
+                const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+                if (!SpeechRecognition) {
+                    alert('Speech recognition not supported in this browser.');
+                    return;
+                }
 
-                recognition.onresult = (event) => {
-                    let transcript = '';
-                    for (let i = 0; i < event.results.length; i++) {
-                        transcript += event.results[i][0].transcript + ' ';
-                    }
-                    activityInput.value = transcript.trim();
-                };
+                if (!isRecording) {
+                    recognition = new SpeechRecognition();
+                    recognition.continuous = true;
+                    recognition.interimResults = true;
+                    recognition.lang = 'en-US';
 
-                recognition.onerror = (event) => {
-                    console.error('Speech recognition error:', event.error);
-                    if (event.error === 'no-speech') {
-                        activityInput.value = 'No speech detected.';
-                    } else if (event.error === 'aborted' || event.error === 'network') {
-                        recognition.stop();
-                        isRecording = false;
-                        startVoiceBtn.textContent = 'Start Voice';
-                        startVoiceBtn.classList.remove('recording');
-                        document.getElementById('redDot').style.display = 'none';
-                    }
-                };
+                    recognition.onresult = (event) => {
+                        let transcript = '';
+                        for (let i = 0; i < event.results.length; i++) {
+                            transcript += event.results[i][0].transcript + ' ';
+                        }
+                        activityInput.value = transcript.trim();
+                    };
 
-                recognition.onend = () => {
-                    if (isRecording) recognition.start();
-                };
+                    recognition.onerror = (event) => {
+                        console.error('Speech recognition error:', event.error);
+                        if (event.error === 'no-speech') {
+                            activityInput.value = 'No speech detected.';
+                        } else if (event.error === 'aborted' || event.error === 'network') {
+                            recognition.stop();
+                            isRecording = false;
+                            startVoiceBtn.textContent = 'Start Voice';
+                            startVoiceBtn.classList.remove('recording');
+                            document.getElementById('redDot').style.display = 'none';
+                        }
+                    };
 
-                recognition.start();
-                startVoiceBtn.textContent = 'Stop Voice';
-                startVoiceBtn.classList.add('recording');
-                document.getElementById('redDot').style.display = 'block';
-                isRecording = true;
-            } else {
-                // Stop recording
-                recognition.stop();
-                audioContext.close();
-                cancelAnimationFrame(animationId);
-                startVoiceBtn.textContent = 'Start Voice';
-                startVoiceBtn.classList.remove('recording');
-                document.getElementById('redDot').style.display = 'none';
-                isRecording = false;
+                    recognition.onend = () => {
+                        if (isRecording) recognition.start();
+                    };
+
+                    recognition.start();
+                    startVoiceBtn.textContent = 'Stop Voice';
+                    startVoiceBtn.classList.add('recording');
+                    document.getElementById('redDot').style.display = 'block';
+                    isRecording = true;
+                } else {
+                    recognition.stop();
+                    audioContext.close();
+                    cancelAnimationFrame(animationId);
+                    startVoiceBtn.textContent = 'Start Voice';
+                    startVoiceBtn.classList.remove('recording');
+                    document.getElementById('redDot').style.display = 'none';
+                    isRecording = false;
+                }
+            }
+            catch(error){
+                console.error("error in start voice click", error)
             }
         });
 
