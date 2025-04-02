@@ -6,7 +6,7 @@
   <title>MIA (Mood Into Art)</title>
   <style>
     body {
-      font-family: Helvetica, Arial, sans-serif;
+      font-family: Arial, sans-serif;
       margin: 0;
       background-color: black;
       color: #00FF00;
@@ -15,6 +15,7 @@
       align-items: center;
       min-height: 100vh;
     }
+
     .container {
       width: 95%;
       max-width: 500px;
@@ -26,14 +27,15 @@
       flex-direction: column;
       align-items: center;
     }
-    canvas#waveform {
+
+    canvas#waveform, canvas#grid {
       width: 100%;
-      height: 160px;
+      height: 80px;
       background-color: black;
-      border: 2px solid #00FF00;
+      border: 1px solid #00FF00;
       margin-bottom: 10px;
-      display: block;
     }
+
     .dot-alert {
       width: 10px;
       height: 10px;
@@ -43,22 +45,24 @@
       display: none;
       margin-bottom: 10px;
     }
+
     @keyframes blink {
       0%, 100% { opacity: 1; }
       50% { opacity: 0; }
     }
+
     .footer-bar {
       display: flex;
       justify-content: space-between;
       align-items: center;
       width: 100%;
       font-size: 10pt;
+      color: #00FF00;
       padding: 0 5px;
       margin-top: -10px;
       margin-bottom: 10px;
     }
-    #dateDisplay { color: white; }
-    #countdownDisplay { color: red; }
+
     textarea, select {
       width: 100%;
       padding: 10px;
@@ -68,12 +72,7 @@
       margin-bottom: 10px;
       resize: vertical;
     }
-    textarea {
-      overflow-y: auto;
-      overflow-x: hidden;
-      white-space: pre-wrap;
-      word-wrap: break-word;
-    }
+
     .button-group {
       width: 100%;
       display: grid;
@@ -81,24 +80,28 @@
       gap: 10px;
       margin-top: 10px;
     }
+
     .button {
       background-color: black;
       border: 2px solid #00FF00;
       color: #00FF00;
       padding: 10px;
       cursor: pointer;
-      font-family: Helvetica, Arial, sans-serif;
+      font-family: Arial, sans-serif;
     }
+
     .button.recording {
-      background-color: red;
-      color: white;
+      background-color: #FFFF00;
+      color: black;
     }
+
     #loadingIndicator {
       display: none;
       justify-content: center;
       gap: 4px;
       margin-top: 10px;
     }
+
     .dot {
       width: 4px;
       height: 4px;
@@ -107,28 +110,31 @@
       opacity: 0;
       animation: blink 1.6s infinite;
     }
+
     .dot:nth-child(1) { animation-delay: 0s; }
     .dot:nth-child(2) { animation-delay: 0.4s; }
     .dot:nth-child(3) { animation-delay: 0.8s; }
     .dot:nth-child(4) { animation-delay: 1.2s; }
+
     #generatedImage {
       max-width: 100%;
       border: 1px solid #00FF00;
       margin-top: 20px;
       display: none;
     }
+
     #logHistory {
       width: 100%;
       font-size: 10px;
       margin-top: 20px;
       border-top: 1px dashed #00FF00;
       padding-top: 10px;
-      text-align: center;
     }
   </style>
 </head>
 <body>
 <div class="container">
+  <canvas id="grid"></canvas>
   <canvas id="waveform"></canvas>
   <div class="footer-bar">
     <div id="dateDisplay"></div>
@@ -139,6 +145,16 @@
   <select id="styleSelect">
     <option value="photo">Hyper-realistic Photo</option>
     <option value="anime">Japanese Anime Style</option>
+    <option value="Rembrandt">Rembrandt</option>
+    <option value="Picasso">Picasso</option>
+    <option value="Van Gogh">Van Gogh</option>
+    <option value="Monet">Monet</option>
+    <option value="Matisse">Matisse</option>
+    <option value="Klimt">Klimt</option>
+    <option value="Hokusai">Hokusai</option>
+    <option value="Dali">Dali</option>
+    <option value="Warhol">Warhol</option>
+    <option value="Basquiat">Basquiat</option>
     <option value="none">No Image</option>
   </select>
   <div class="button-group">
@@ -157,28 +173,43 @@
   <div id="logHistory"></div>
 </div>
 <script>
-  // Grid and Waveform
-  const waveformCanvas = document.getElementById('waveform');
-  const ctx = waveformCanvas.getContext('2d');
-  let audioContext, analyser, dataArray, source, animationId;
-
+  // Grid
+  const grid = document.getElementById('grid');
+  const gridCtx = grid.getContext('2d');
   function drawGrid() {
-    waveformCanvas.width = waveformCanvas.clientWidth;
-    waveformCanvas.height = waveformCanvas.clientHeight;
-    const w = waveformCanvas.width;
-    const h = waveformCanvas.height;
-    ctx.clearRect(0, 0, w, h);
-    ctx.strokeStyle = 'rgba(0, 255, 0, 0.6)';
-    ctx.lineWidth = 1.2;
-    for (let i = 0; i <= w; i += w / 8) {
-      ctx.beginPath(); ctx.moveTo(i, 0); ctx.lineTo(i, h); ctx.stroke();
+    grid.width = grid.clientWidth;
+    grid.height = grid.clientHeight;
+    const w = grid.width;
+    const h = grid.height;
+    gridCtx.clearRect(0, 0, w, h);
+    gridCtx.strokeStyle = 'rgba(0, 255, 255, 0.3)';
+    gridCtx.lineWidth = 0.3;
+    for (let i = 0; i <= w; i += w / 20) {
+      gridCtx.beginPath();
+      gridCtx.moveTo(i, 0);
+      gridCtx.lineTo(i, h);
+      gridCtx.stroke();
     }
-    for (let j = 0; j <= h; j += h / 4) {
-      ctx.beginPath(); ctx.moveTo(0, j); ctx.lineTo(w, j); ctx.stroke();
+    for (let j = 0; j <= h; j += h / 12) {
+      gridCtx.beginPath();
+      gridCtx.moveTo(0, j);
+      gridCtx.lineTo(w, j);
+      gridCtx.stroke();
     }
-    ctx.strokeStyle = 'rgba(0, 255, 0, 1)';
-    ctx.beginPath(); ctx.moveTo(0, h / 2); ctx.lineTo(w, h / 2); ctx.stroke();
+    gridCtx.strokeStyle = 'rgba(0, 255, 255, 0.5)';
+    gridCtx.lineWidth = 0.5;
+    gridCtx.beginPath();
+    gridCtx.moveTo(0, h / 2);
+    gridCtx.lineTo(w, h / 2);
+    gridCtx.stroke();
   }
+  window.addEventListener('load', drawGrid);
+  window.addEventListener('resize', drawGrid);
+
+  // Waveform
+  const waveform = document.getElementById('waveform');
+  const waveformCtx = waveform.getContext('2d');
+  let audioContext, analyser, dataArray, source, animationId;
 
   async function startMic() {
     audioContext = new (window.AudioContext || window.webkitAudioContext)();
@@ -192,30 +223,26 @@
   }
 
   function drawWaveform() {
-    waveformCanvas.width = waveformCanvas.clientWidth;
-    waveformCanvas.height = waveformCanvas.clientHeight;
-    ctx.clearRect(0, 0, waveformCanvas.width, waveformCanvas.height);
-    drawGrid(); // Redraw grid beneath waveform
+    waveform.width = waveform.clientWidth;
+    waveform.height = waveform.clientHeight;
+    waveformCtx.clearRect(0, 0, waveform.width, waveform.height);
     analyser.getByteTimeDomainData(dataArray);
-    ctx.strokeStyle = '#00FF00';
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    let sliceWidth = waveformCanvas.width / dataArray.length;
+    waveformCtx.strokeStyle = 'cyan';
+    waveformCtx.lineWidth = 1;
+    waveformCtx.beginPath();
+    let sliceWidth = waveform.width / dataArray.length;
     let x = 0;
     for (let i = 0; i < dataArray.length; i++) {
       let v = dataArray[i] / 128.0;
-      let y = v * waveformCanvas.height / 2;
-      if (i === 0) ctx.moveTo(x, y);
-      else ctx.lineTo(x, y);
+      let y = v * waveform.height / 2;
+      if (i === 0) waveformCtx.moveTo(x, y);
+      else waveformCtx.lineTo(x, y);
       x += sliceWidth;
     }
-    ctx.lineTo(waveformCanvas.width, waveformCanvas.height / 2);
-    ctx.stroke();
+    waveformCtx.lineTo(waveform.width, waveform.height / 2);
+    waveformCtx.stroke();
     animationId = requestAnimationFrame(drawWaveform);
   }
-
-  window.addEventListener('load', drawGrid);
-  window.addEventListener('resize', drawGrid);
 
   // Date/Time
   function updateDateTime() {
@@ -331,7 +358,7 @@
     }
   });
 
-  // Save Image (Optional: Add functionality if needed)
+  // Save Image
   document.getElementById('saveImage').addEventListener('click', () => {
     const output = document.getElementById('generatedImage');
     if (output.src && output.style.display !== 'none') {
