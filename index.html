@@ -75,7 +75,7 @@
             padding: 10px;
             background-color: black;
             border: 2px solid #00FF00;
-            color: #00FF00;
+            color: white; /* Text color changed to white */
             margin-bottom: 10px;
             resize: vertical;
         }
@@ -346,8 +346,8 @@
                     body: JSON.stringify({ prompt })
                 });
                 const data = await response.json();
-                if (data.image) {
-                    output.src = data.image;
+                if (data.imageUrl) { // Changed data.image to data.imageUrl
+                    output.src = data.imageUrl;
                     output.style.display = 'block';
                     const timestamp = new Date().toLocaleString();
                     log.innerHTML += `<p>${timestamp}: ${prompt}</p>`;
@@ -365,11 +365,15 @@
         // Save Image
         document.getElementById('saveImage').addEventListener('click', () => {
             const output = document.getElementById('generatedImage');
+            const log = document.getElementById('logHistory'); // Get the log history div
+            const input = document.getElementById('activityInput').value.trim(); // Get the input text
             if (output.src && output.style.display !== 'none') {
                 const link = document.createElement('a');
                 link.href = output.src;
                 link.download = 'mood_into_art_image.png';
                 link.click();
+                const timestamp = new Date().toLocaleString(); // Get the timestamp
+                log.innerHTML += `<p>Saved - ${timestamp}: ${input}</p>`; // Log the saved mood
             } else {
                 alert('No image to save. Generate an image first.');
             }
