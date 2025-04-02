@@ -3,7 +3,6 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta http-equiv="Permissions-Policy" content="microphone=self">
     <title>MIA (Mood Into Art)</title>
     <style>
         body {
@@ -181,25 +180,6 @@
         const combinedCanvas = document.getElementById('combinedCanvas');
         const combinedCtx = combinedCanvas.getContext('2d');
         let audioContext, analyser, dataArray, source, animationId;
-        let microphoneStream = null;
-
-        // Initialize AudioContext on first user interaction for iOS
-        document.addEventListener('touchstart', initAudioContext, { once: true });
-        document.addEventListener('click', initAudioContext, { once: true });
-
-        function initAudioContext() {
-            if (!audioContext) {
-                try {
-                    audioContext = new (window.AudioContext || window.webkitAudioContext)();
-                } catch (error) {
-                    console.error("Error initializing AudioContext:", error);
-                }
-            }
-            
-            if (audioContext && audioContext.state !== 'running') {
-                audioContext.resume().catch(err => console.error("Error resuming audio context:", err));
-            }
-        }
 
         function drawCombined() {
             combinedCanvas.width = combinedCanvas.clientWidth;
@@ -253,55 +233,17 @@
 
         async function startMic() {
             try {
-                // Force AudioContext to initialize for iOS
-                initAudioContext();
-                
-                // iOS-friendly constraints
-                const constraints = {
-                    audio: {
-                        echoCancellation: true,
-                        noiseSuppression: true,
-                        autoGainControl: true
-                    }
-                };
-                
-                // Get microphone stream
-                microphoneStream = await navigator.mediaDevices.getUserMedia(constraints);
-                
-                source = audioContext.createMediaStreamSource(microphoneStream);
+                audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                source = audioContext.createMediaStreamSource(stream);
                 analyser = audioContext.createAnalyser();
                 analyser.fftSize = 2048;
                 dataArray = new Uint8Array(analyser.fftSize);
                 source.connect(analyser);
                 drawCombined();
-                return true;
             } catch (error) {
                 console.error("Error in startMic:", error);
-                
-                // Handle iOS-specific errors
-                if (/iPad|iPhone|iPod/.test(navigator.userAgent)) {
-                    alert("Microphone access is required. For iOS devices, please ensure microphone permissions are granted in your browser settings.");
-                } else {
-                    alert("Microphone access denied or not available. Please check permissions and try again.");
-                }
-                return false;
-            }
-        }
-
-        function stopMic() {
-            if (microphoneStream) {
-                microphoneStream.getTracks().forEach(track => track.stop());
-                microphoneStream = null;
-            }
-            
-            if (source) {
-                source.disconnect();
-                source = null;
-            }
-            
-            if (animationId) {
-                cancelAnimationFrame(animationId);
-                animationId = null;
+                alert("Microphone access denied or not available. Please check permissions and try again.");
             }
         }
 
@@ -323,70 +265,28 @@
             document.getElementById('activityInput').value = '';
         });
 
-        // Voice Recording Logic with iOS fixes
+        // Google Cloud STT via Render backend
         const startVoiceBtn = document.getElementById('startVoice');
         const activityInput = document.getElementById('activityInput');
         let recorder;
         let audioChunks = [];
-        let isRecording = false;
-
-        // Check for Web Speech API (available on iOS Safari)
-        const webSpeechAPIAvailable = 'webkitSpeechRecognition' in window || 'SpeechRecognition' in window;
 
         startVoiceBtn.addEventListener('click', async () => {
-            // iOS Safari requires user interaction to start AudioContext
-            initAudioContext();
-            
-            if (!isRecording) {
-                // Use Web Speech API on iOS Safari
-                if (webSpeechAPIAvailable && /iPad|iPhone|iPod/.test(navigator.userAgent)) {
-                    useWebSpeechAPI();
-                    return;
-                }
-                
-                // For other browsers, use MediaRecorder
-                const micStarted = await startMic();
-                if (!micStarted) return;
-                
+            if (!recorder) {
                 try {
-                    // Select appropriate MIME type
-                    // Safari and iOS support audio/mp4
-                    let mimeType = 'audio/webm';
-                    
-                    if (/iPad|iPhone|iPod|Safari/.test(navigator.userAgent) && !/Chrome/.test(navigator.userAgent)) {
-                        if (MediaRecorder.isTypeSupported('audio/mp4')) {
-                            mimeType = 'audio/mp4';
-                        }
-                    }
-                    
-                    isRecording = true;
-                    recorder = new MediaRecorder(microphoneStream, { mimeType });
-                    
-                    audioChunks = [];
+                    await startMic(); // Start microphone visualization
+                    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                    recorder = new MediaRecorder(stream, { mimeType: 'audio/wav' });
+
                     recorder.ondataavailable = (event) => {
-                        if (event.data.size > 0) {
-                            audioChunks.push(event.data);
-                        }
+                        audioChunks.push(event.data);
                     };
 
                     recorder.onstop = async () => {
-                        isRecording = false;
-                        startVoiceBtn.textContent = 'Start Voice';
-                        startVoiceBtn.classList.remove('recording');
-                        document.getElementById('redDot').style.display = 'none';
-                        
-                        if (audioChunks.length === 0) {
-                            console.warn("No audio data recorded");
-                            return;
-                        }
-                        
-                        const audioBlob = new Blob(audioChunks, { type: recorder.mimeType });
+                        const audioBlob = new Blob(audioChunks, { type: 'audio/wav' });
                         const audioBuffer = await audioBlob.arrayBuffer();
-                        const audioBase64 = btoa(
-                            new Uint8Array(audioBuffer)
-                                .reduce((data, byte) => data + String.fromCharCode(byte), '')
-                        );
-                        
+                        const audioBase64 = btoa(new Uint8Array(audioBuffer).reduce((data, byte) => data + String.fromCharCode(byte), ''));
+
                         try {
                             const response = await fetch('https://mood-into-art-backend.onrender.com/transcribe', {
                                 method: 'POST',
@@ -404,88 +304,28 @@
                             console.error('Error transcribing:', error);
                             alert('An error occurred during transcription.');
                         }
-                        
-                        // Clean up
+
                         audioChunks = [];
-                        stopMic();
+                        recorder = null;
+                        startVoiceBtn.textContent = 'Start Voice';
+                        startVoiceBtn.classList.remove('recording');
+                        document.getElementById('redDot').style.display = 'none';
                     };
 
-                    recorder.start(100); // Collect data in 100ms chunks
+                    recorder.start();
                     startVoiceBtn.textContent = 'Stop Voice';
                     startVoiceBtn.classList.add('recording');
                     document.getElementById('redDot').style.display = 'block';
                 } catch (error) {
-                    isRecording = false;
                     console.error('Error starting recording:', error);
-                    alert('Could not start recording: ' + error.message);
+                    alert('Could not start recording. Please check microphone permissions.');
                 }
             } else {
-                // Stop recording
-                if (recorder && recorder.state !== 'inactive') {
-                    recorder.stop();
-                }
-                isRecording = false;
+                recorder.stop();
+                audioContext.close();
+                cancelAnimationFrame(animationId);
             }
         });
-
-        // Web Speech API function for iOS Safari
-        function useWebSpeechAPI() {
-            const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-            if (!SpeechRecognition) {
-                console.error("Web Speech API not supported");
-                return;
-            }
-            
-            const recognition = new SpeechRecognition();
-            recognition.lang = 'en-US';
-            recognition.continuous = false;
-            recognition.interimResults = false;
-            
-            // Show recording UI
-            startVoiceBtn.textContent = 'Stop Voice';
-            startVoiceBtn.classList.add('recording');
-            document.getElementById('redDot').style.display = 'block';
-            isRecording = true;
-            
-            recognition.onresult = (event) => {
-                const transcript = event.results[0][0].transcript;
-                activityInput.value = transcript;
-            };
-            
-            recognition.onerror = (event) => {
-                console.error('Speech recognition error:', event.error);
-                alert('Speech recognition error: ' + event.error);
-                resetRecordingUI();
-            };
-            
-            recognition.onend = () => {
-                resetRecordingUI();
-            };
-            
-            try {
-                recognition.start();
-            } catch (err) {
-                console.error("Could not start speech recognition:", err);
-                resetRecordingUI();
-            }
-            
-            // Update button to stop recognition
-            startVoiceBtn.onclick = () => {
-                if (isRecording) {
-                    recognition.stop();
-                }
-            };
-        }
-        
-        function resetRecordingUI() {
-            startVoiceBtn.textContent = 'Start Voice';
-            startVoiceBtn.classList.remove('recording');
-            document.getElementById('redDot').style.display = 'none';
-            isRecording = false;
-            
-            // Reset click handler
-            startVoiceBtn.onclick = null;
-        }
 
         // Generate with Stability AI via Render backend
         document.getElementById('generate').addEventListener('click', async () => {
@@ -526,26 +366,16 @@
             }
         });
 
-        // Save Image with iOS compatibility
+        // Save Image
         document.getElementById('saveImage').addEventListener('click', () => {
             const output = document.getElementById('generatedImage');
             const log = document.getElementById('logHistory');
             const input = document.getElementById('activityInput').value.trim();
             if (output.src && output.style.display !== 'none') {
-                const a = document.createElement('a');
-                
-                // Special handling for iOS
-                if (/iPad|iPhone|iPod/.test(navigator.userAgent)) {
-                    // iOS often blocks downloads, so open in new tab
-                    a.target = '_blank';
-                } else {
-                    // For other browsers, use download attribute
-                    a.download = 'mood_into_art_image.png';
-                }
-                
-                a.href = output.src;
-                a.click();
-                
+                const link = document.createElement('a');
+                link.href = output.src;
+                link.download = 'mood_into_art_image.png';
+                link.click();
                 const timestamp = new Date().toLocaleString();
                 log.innerHTML += `<p>Saved - ${timestamp}: ${input}</p>`;
             } else {
