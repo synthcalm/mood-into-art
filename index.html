@@ -9,7 +9,7 @@
             font-family: Arial, sans-serif;
             margin: 0;
             background-color: black;
-            color: #00FFFF; /* Cyan */
+            color: #00FFFF;
             display: flex;
             justify-content: center;
             align-items: center;
@@ -20,7 +20,7 @@
             width: 95%;
             max-width: 500px;
             padding: 20px;
-            border: 2px solid #00FFFF; /* Cyan */
+            border: 2px solid #00FFFF;
             border-radius: 12px;
             background-color: black;
             display: flex;
@@ -32,8 +32,14 @@
             width: 100%;
             height: 160px;
             background-color: black;
-            border: 1px solid #00FFFF; /* Cyan */
+            border: 1px solid #00FFFF;
             margin-bottom: 10px;
+            /* Added grid styles */
+            background-image:
+                linear-gradient(to right, rgba(0, 255, 255, 0.2) 1px, transparent 1px),
+                linear-gradient(to bottom, rgba(0, 255, 255, 0.2) 1px, transparent 1px);
+            background-size: 20px 20px;
+            background-position: 0 0, 0 0;
         }
 
         .dot-alert {
@@ -52,23 +58,22 @@
         }
 
         .footer-bar {
+            margin-top: 5px;
             display: flex;
             justify-content: space-between;
             align-items: center;
             width: 100%;
             font-size: 10pt;
-            color: #00FFFF; /* Cyan */
-            padding: 0 5px;
-            margin-top: -10px;
-            margin-bottom: 10px;
+            color: #00FFFF;
+            padding: 0 10px; /* Added padding to the footer-bar */
         }
 
         textarea, select {
             width: 100%;
             padding: 10px;
             background-color: black;
-            border: 2px solid #00FFFF; /* Cyan */
-            color: #00FFFF; /* Cyan */
+            border: 2px solid #00FFFF;
+            color: #00FFFF;
             margin-bottom: 10px;
             resize: vertical;
         }
@@ -83,15 +88,15 @@
 
         .button {
             background-color: black;
-            border: 2px solid #00FFFF; /* Cyan */
-            color: #00FFFF; /* Cyan */
+            border: 2px solid #00FFFF;
+            color: #00FFFF;
             padding: 10px;
             cursor: pointer;
             font-family: Arial, sans-serif;
         }
 
         .button.recording {
-            background-color: #FFFF00; /* Yellow */
+            background-color: #FFFF00;
             color: black;
         }
 
@@ -105,7 +110,7 @@
         .dot {
             width: 4px;
             height: 4px;
-            background-color: #00FFFF; /* Cyan */
+            background-color: #00FFFF;
             border-radius: 50%;
             opacity: 0;
             animation: blink 1.6s infinite;
@@ -118,7 +123,7 @@
 
         #generatedImage {
             max-width: 100%;
-            border: 1px solid #00FFFF; /* Cyan */
+            border: 1px solid #00FFFF;
             margin-top: 20px;
             display: none;
         }
@@ -127,16 +132,52 @@
             width: 100%;
             font-size: 10px;
             margin-top: 20px;
-            border-top: 1px dashed #00FFFF; /* Cyan */
+            border-top: 1px dashed #00FFFF;
             padding-top: 10px;
         }
 
         #moodHistory {
             margin-top: 20px;
             width: 100%;
-            border-top: 1px dashed #00FFFF; /* Cyan */
+            border-top: 1px dashed #00FFFF;
             font-size: 9px;
-            color: #00FFFF; /* Cyan */
+            color: #00FFFF;
+        }
+
+        /* StyleSelect Styles */
+        #styleSelect {
+            width: 100%;
+            padding: 10px;
+            background-color: black;
+            border: 2px solid #00FFFF;
+            color: #00FFFF;
+            margin-bottom: 10px;
+            resize: vertical;
+            text-align: center;
+            appearance: none;
+            -webkit-appearance: none;
+            -moz-appearance: none;
+            /* Removed background-image to remove the triangles */
+            background-repeat: no-repeat;
+            background-position: right 10px center;
+            padding-right: 30px;
+        }
+
+        #styleSelect:focus {
+            outline: none;
+            border-color: #00FFFF;
+            box-shadow: 0 0 5px rgba(0, 255, 255, 0.5);
+        }
+
+        .footer-bar {
+            margin-top: 5px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            width: 100%;
+            font-size: 10pt;
+            color: #00FFFF;
+            padding: 0 10px; /* Added padding to the footer-bar */
         }
     </style>
 </head>
@@ -150,6 +191,7 @@
     <div class="dot-alert" id="redDot"></div>
     <textarea id="activityInput" rows="4" placeholder="Describe your mood..."></textarea>
     <select id="styleSelect">
+        <option value="" disabled selected>Choose Style</option>
         <option value="photo">Hyper-realistic Photo</option>
         <option value="anime">Japanese Anime Style</option>
         <option value="abstract">Abstract</option>
@@ -195,7 +237,7 @@
     const startVoiceButton = document.getElementById('startVoice');
     const redoButton = document.getElementById('redo');
     const generateButton = document.getElementById('generate');
-    const saveImageButton = document.getElementById('saveImage');
+    const saveImageButton = document.getElementById('saveImageButton');
     const loadingIndicator = document.getElementById('loadingIndicator');
     const generatedImage = document.getElementById('generatedImage');
     const logHistory = document.getElementById('logHistory');
@@ -211,13 +253,13 @@
     let remainingTime = 30;
 
     // --- Sound Effects ---
-    const dingSound = new Audio('https://www.soundjay.com/buttons/sounds/beep-01a.mp3'); // Use a free sound
-    const swooshSound = new Audio('https://www.soundjay.com/buttons/sounds/synthetic-sound-013.mp3'); // Use a free sound
+    const dingSound = new Audio('https://www.soundjay.com/buttons/sounds/beep-01a.mp3');
+    const swooshSound = new Audio('https://www.soundjay.com/buttons/sounds/synthetic-sound-013.mp3');
 
     // --- Date and Time Display ---
     function updateDateTime() {
         const now = new Date();
-        const dateString = now.toLocaleDateString('en-US', { // Consistent format
+        const dateString = now.toLocaleDateString('en-US', {
             weekday: 'short',
             month: 'short',
             day: 'numeric',
@@ -243,7 +285,7 @@
 
         waveformCtx.clearRect(0, 0, waveformCanvas.width, waveformCanvas.height);
         waveformCtx.lineWidth = 2;
-        waveformCtx.strokeStyle = '#FFFF00'; // Yellow
+        waveformCtx.strokeStyle = '#FFFF00';
         waveformCtx.beginPath();
 
         let x = 0;
@@ -283,8 +325,8 @@
             remainingTime = 30;
             countdownDisplay.textContent = '00:30:00';
             countdownInterval = setInterval(updateCountdown, 1000);
-            drawWaveform(); // Start waveform visualization
-            requestAnimationFrame(drawWaveform); // Continue animation loop
+            drawWaveform();
+            requestAnimationFrame(drawWaveform);
 
         } catch (err) {
             console.error('Error accessing microphone:', err);
@@ -311,7 +353,7 @@
             remainingTime--;
             const minutes = Math.floor(remainingTime / 60);
             const seconds = remainingTime % 60;
-            const milliseconds = 0; // Not used, but kept for consistent formatting if needed
+            const milliseconds = 0;
             countdownDisplay.textContent = `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}:${String(milliseconds).padStart(2, '0')}`;
             if (remainingTime <= 5) {
                 countdownDisplay.style.color = 'red';
@@ -335,8 +377,8 @@
         generatedImage.style.display = 'none';
         logHistory.innerHTML = '';
         moodHistory.innerHTML = '';
-        styleSelect.value = 'photo'; // Reset the dropdown
-        remainingTime = 30; // Reset timer
+        styleSelect.value = '';
+        remainingTime = 30;
         countdownDisplay.textContent = '00:30:00';
         countdownDisplay.style.color = '#00FFFF';
     });
@@ -373,7 +415,7 @@
             case 'anime':
                 prompt = `Japanese anime illustration of ${input}`;
                 break;
-             case 'arabic-calligraphy':
+            case 'arabic-calligraphy':
                 prompt = `Gorgeous Arabic calligraphy with poetic script inspired by classical manuscripts, expressing: ${input}`;
                 break;
             case 'chinese-calligraphy':
