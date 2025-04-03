@@ -5,164 +5,107 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>MIA (Mood Into Art)</title>
   <style>
-    /* Previous styles remain the same */
-    
-    /* New history entry styles */
-    .history-entry {
-      position: relative;
-      width: 100%;
-      margin: 8px 0;
-      padding: 10px;
-      border: 1px solid #00FFFF;
-      border-radius: 6px;
-    }
-    
-    .entry-content {
-      width: calc(100% - 60px);
-      padding: 5px;
-      min-height: 20px;
-    }
-    
-    .entry-actions {
-      position: absolute;
-      top: 5px;
-      right: 5px;
+    body {
+      font-family: Arial, sans-serif;
+      margin: 0;
+      background-color: #000;
+      color: #00FFFF;
       display: flex;
-      gap: 5px;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+      overflow: auto; /* Added for scrollability */
     }
-    
-    .entry-btn {
-      background: none;
-      border: 1px solid #00FFFF;
-      color: #00FFFF;
-      cursor: pointer;
-      padding: 2px 5px;
-      font-size: 0.8em;
+    .container {
+      width: 95%;
+      max-width: 500px;
+      padding: 20px;
+      border: 2px solid #00FFFF;
+      border-radius: 12px;
+      background-color: rgba(0, 0, 0, 0.9); /* Semi-transparent black */
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      margin: 20px 0; /* Added spacing */
     }
-    
-    .entry-btn:hover {
-      background: #00FFFF;
-      color: #000;
-    }
-    
-    #moodHistory {
-      max-height: 200px;
-      overflow-y: auto;
+    canvas#waveform {
       width: 100%;
+      height: 160px;
+      background-color: rgba(0, 0, 0, 0.5);
+      border: 1px solid #00FFFF;
+      margin-bottom: 10px;
+      background-image:
+        linear-gradient(to right, rgba(0, 255, 255, 0.3) 1px, transparent 1px),
+        linear-gradient(to bottom, rgba(0, 255, 255, 0.3) 1px, transparent 1px);
+      background-size: 20px 20px;
     }
-    
-    .timestamp {
-      font-size: 0.8em;
-      color: #00FFFF;
-      opacity: 0.7;
-      margin-bottom: 5px;
+    /* ... (keep other styles the same) ... */
+    .button:hover {
+      background-color: #00FFFF;
+      color: #000;
+      transition: all 0.3s ease;
+    }
+    #generatedImage {
+      max-width: 100%;
+      border: 1px solid #00FFFF;
+      margin-top: 20px;
+      display: none;
+      background: #000; /* Ensure image background isn't transparent */
     }
   </style>
 </head>
 <body>
-  <div class="container">
-    <!-- Previous elements remain the same -->
-    
-    <!-- Updated footer bar -->
-    <div class="footer-bar">
-      <div id="dateTimeDisplay"></div>
-      <div id="countdownDisplay">00:30:00</div>
-    </div>
-    
-    <!-- Previous elements remain the same -->
-    
-    <div id="moodHistory"></div>
-  </div>
+  <!-- Keep existing body content the same -->
 
   <script>
-    // Add real-time clock
-    function updateDateTime() {
-      const now = new Date();
-      document.getElementById('dateTimeDisplay').innerHTML = `
-        ${now.toLocaleDateString('en-US', {
-          year: 'numeric',
-          month: 'short',
-          day: 'numeric'
-        })}<br>
-        ${now.toLocaleTimeString('en-US', {
-          hour: '2-digit',
-          minute: '2-digit',
-          second: '2-digit'
-        })}
-      `;
-    }
-    setInterval(updateDateTime, 1000);
-    updateDateTime();
+    // Add this initialization code at the top of your script
+    window.addEventListener('DOMContentLoaded', () => {
+      // Initialize canvas context
+      const canvas = document.getElementById('waveform');
+      const ctx = canvas.getContext('2d');
+      canvas.width = canvas.offsetWidth;
+      canvas.height = canvas.offsetHeight;
 
-    // Modified generate button handler
-    generateButton.addEventListener('click', async () => {
-      if (!activityInput.value.trim() || styleSelect.value === 'none') {
-        alert('Please describe your mood and select a style!');
-        return;
-      }
-
-      const loadingIndicator = document.getElementById('loadingIndicator');
-      loadingIndicator.style.display = 'flex';
-      
-      try {
-        // Simulated API call
-        const response = await fetch('YOUR_API_ENDPOINT', {
-          method: 'POST',
-          body: JSON.stringify({
-            prompt: activityInput.value,
-            style: styleSelect.value
-          })
-        });
+      // Draw initial waveform grid
+      function drawGrid() {
+        ctx.strokeStyle = 'rgba(0, 255, 255, 0.2)';
+        ctx.lineWidth = 1;
         
-        const imageUrl = await response.json();
-        const generatedImage = document.getElementById('generatedImage');
-        generatedImage.src = imageUrl;
-        generatedImage.style.display = 'block';
-        document.getElementById('beepSound').play();
-
-        // Add to mood history
-        addHistoryEntry(activityInput.value);
-      } catch (error) {
-        console.error('Generation failed:', error);
-        alert('Image generation failed. Please try again.');
-      } finally {
-        loadingIndicator.style.display = 'none';
+        // Horizontal lines
+        for(let y = 0; y < canvas.height; y += 20) {
+          ctx.beginPath();
+          ctx.moveTo(0, y);
+          ctx.lineTo(canvas.width, y);
+          ctx.stroke();
+        }
+        
+        // Vertical lines
+        for(let x = 0; x < canvas.width; x += 20) {
+          ctx.beginPath();
+          ctx.moveTo(x, 0);
+          ctx.lineTo(x, canvas.height);
+          ctx.stroke();
+        }
       }
+      drawGrid();
+
+      // Initialize date display
+      const dateDisplay = document.getElementById('dateDisplay');
+      dateDisplay.textContent = new Date().toLocaleDateString();
     });
 
-    // History management functions
-    function addHistoryEntry(text) {
-      const historyContainer = document.getElementById('moodHistory');
-      const entry = document.createElement('div');
-      entry.className = 'history-entry';
-      
-      const timestamp = new Date().toLocaleString();
-      
-      entry.innerHTML = `
-        <div class="timestamp">${timestamp}</div>
-        <div class="entry-content" contenteditable="true">${text}</div>
-        <div class="entry-actions">
-          <button class="entry-btn delete-btn">✕</button>
-        </div>
-      `;
-      
-      historyContainer.prepend(entry);
-      
-      // Add delete functionality
-      entry.querySelector('.delete-btn').addEventListener('click', () => {
-        entry.remove();
-      });
-    }
-
-    // Enable history editing
-    document.getElementById('moodHistory').addEventListener('input', (e) => {
-      if (e.target.classList.contains('entry-content')) {
-        // Auto-save functionality could be added here
-        console.log('Entry modified:', e.target.textContent);
-      }
+    // Add this to your existing button event listeners
+    document.getElementById('startVoice').addEventListener('click', () => {
+      document.getElementById('redDot').style.display = 'block';
     });
 
-    // Previous JavaScript code remains the same
+    // Add temporary test alert to verify UI functionality
+    setTimeout(() => {
+      document.getElementById('redDot').style.display = 'block';
+      setTimeout(() => {
+        document.getElementById('redDot').style.display = 'none';
+      }, 2000);
+    }, 1000);
   </script>
 </body>
 </html>
