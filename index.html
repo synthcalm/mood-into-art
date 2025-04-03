@@ -22,7 +22,7 @@
       padding: 20px;
       border: 2px solid #00FFFF;
       border-radius: 12px;
-      background-color: rgba(0, 32, 32, 0.95);
+      background-color: rgba(0, 0, 0, 0.9);
       display: flex;
       flex-direction: column;
       align-items: center;
@@ -34,6 +34,10 @@
       background-color: rgba(0, 0, 0, 0.5);
       border: 1px solid #00FFFF;
       margin-bottom: 10px;
+      background-image:
+        linear-gradient(to right, rgba(0, 255, 255, 0.3) 1px, transparent 1px),
+        linear-gradient(to bottom, rgba(0, 255, 255, 0.3) 1px, transparent 1px);
+      background-size: 20px 20px;
     }
     .dot-alert {
       width: 10px;
@@ -53,9 +57,10 @@
       justify-content: space-between;
       align-items: center;
       width: 100%;
-      font-size: 0.9em;
+      font-size: 12px;
       color: #00FFFF;
-      padding: 10px 0;
+      padding: 0 10px;
+      margin: 10px 0;
     }
     textarea, select {
       width: 100%;
@@ -114,39 +119,59 @@
       display: none;
       background: #000;
     }
-    #moodHistoryContainer {
+    .history-entry {
+      position: relative;
       width: 100%;
-      margin-top: 20px;
-      border: 1px solid #00FFFF;
+      margin: 8px 0;
       padding: 10px;
+      border: 1px solid #00FFFF;
+      border-radius: 6px;
     }
-    #moodHistoryContainer h3 {
-      margin-top: 0;
-      font-size: 14px;
-      text-align: center;
-      border-bottom: 1px dashed #00FFFF;
-      padding-bottom: 5px;
+    .entry-content {
+      width: calc(100% - 60px);
+      padding: 5px;
+      min-height: 20px;
+      background: transparent;
+      color: #00FFFF;
     }
-    .mood-entry {
-      font-size: 12px;
-      margin-bottom: 5px;
-      border-bottom: 1px dashed #00FFFF;
-      padding-bottom: 5px;
+    .entry-actions {
+      position: absolute;
+      top: 5px;
+      right: 5px;
       display: flex;
-      justify-content: space-between;
-      align-items: center;
+      gap: 5px;
     }
-    .delete-btn {
+    .entry-btn {
       background: none;
-      border: none;
-      color: #FF0000;
+      border: 1px solid #00FFFF;
+      color: #00FFFF;
       cursor: pointer;
-      font-size: 14px;
-      margin-left: 10px;
+      padding: 2px 5px;
+      font-size: 0.8em;
+    }
+    .entry-btn:hover {
+      background: #00FFFF;
+      color: #000;
+    }
+    #moodHistory {
+      max-height: 200px;
+      overflow-y: auto;
+      width: 100%;
+    }
+    .timestamp {
+      font-size: 0.8em;
+      color: #00FFFF;
+      opacity: 0.7;
+      margin-bottom: 5px;
     }
   </style>
 </head>
 <body>
+  <!-- Loading Overlay -->
+  <div id="initOverlay" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: black; z-index: 9999; display: flex; justify-content: center; align-items: center; color: #00FFFF;">
+    Initializing audio system...<br>Click anywhere to start
+  </div>
+
   <div class="container">
     <canvas id="waveform"></canvas>
     
@@ -158,18 +183,23 @@
     <div class="dot-alert" id="redDot"></div>
     <textarea id="activityInput" rows="4" placeholder="Describe your mood..."></textarea>
     
-    <select id="styleSelect">
+    <select id="styleSelect" style="text-align: center;">
       <option value="none" selected disabled>Choose Style</option>
       <option value="photo">Hyper-realistic Photo</option>
       <option value="anime">Japanese Anime Style</option>
       <option value="abstract">Abstract</option>
       <option value="surrealism">Surrealism</option>
+      <option value="post-modern">Post-modern</option>
       <option value="cyberpunk">Cyberpunk</option>
-      <option value="calligraphy">Arabic Calligraphy</option>
+      <option value="arabic-calligraphy">Arabic Calligraphy</option>
+      <option value="chinese-calligraphy">Chinese Calligraphy</option>
+      <option value="japanese-calligraphy">Japanese Calligraphy</option>
       <option value="marvel">Marvel Comic</option>
       <option value="art-deco">Art Deco</option>
       <option value="impressionist">Impressionist</option>
       <option value="pop-art">Pop Art</option>
+      <option value="digital-painting">Digital Painting</option>
+      <option value="minimalism">Minimalism</option>
     </select>
 
     <div class="button-group">
@@ -187,83 +217,124 @@
     </div>
 
     <img id="generatedImage" />
-    
-    <div id="moodHistoryContainer">
-      <h3>Mood Entries</h3>
-      <div id="moodHistory"></div>
-    </div>
+    <div id="moodHistory"></div>
+
+    <audio id="beepSound" src="https://actions.google.com/sounds/v1/cartoon/clang_and_wobble.ogg"></audio>
+    <audio id="chimeSound" src="https://actions.google.com/sounds/v1/cartoon/wood_plank_flicks.ogg"></audio>
+    <audio id="saveSound" src="https://actions.google.com/sounds/v1/cartoon/pop.ogg"></audio>
   </div>
 
   <script>
-    // Audio Recording System
+    // Full JavaScript Implementation
+    // Audio and Recording System
     let audioContext, mediaRecorder, audioChunks = [];
     let isRecording = false, countdownInterval;
-    const MAX_RECORD_TIME = 30 * 60; // 30 minutes
+    const MAX_RECORD_TIME = 30 * 60;
     let animationId;
 
     // DOM Elements
     const startVoiceButton = document.getElementById('startVoice');
     const generateButton = document.getElementById('generate');
-    const saveButton = document.getElementById('saveImage');
     const activityInput = document.getElementById('activityInput');
     const styleSelect = document.getElementById('styleSelect');
     const waveform = document.getElementById('waveform');
     const waveformCtx = waveform.getContext('2d');
 
-    // Initialize Waveform
-    waveform.width = waveform.offsetWidth;
-    waveform.height = waveform.offsetHeight;
+    // Initialization
+    document.getElementById('initOverlay').addEventListener('click', async () => {
+      try {
+        audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        await audioContext.resume();
+        document.getElementById('initOverlay').style.display = 'none';
+        initWaveform();
+        updateDateTime();
+      } catch (err) {
+        alert('Initialization failed: ' + err.message);
+      }
+    });
+
+    // Waveform Visualization
+    function initWaveform() {
+      waveform.width = waveform.offsetWidth;
+      waveform.height = waveform.offsetHeight;
+      drawWaveformGrid();
+    }
+
+    function drawWaveformGrid() {
+      waveformCtx.strokeStyle = 'rgba(0, 255, 255, 0.2)';
+      waveformCtx.lineWidth = 0.5;
+      
+      // Vertical lines
+      for(let x = 0; x < waveform.width; x += 20) {
+        waveformCtx.beginPath();
+        waveformCtx.moveTo(x, 0);
+        waveformCtx.lineTo(x, waveform.height);
+        waveformCtx.stroke();
+      }
+      
+      // Horizontal lines
+      for(let y = 0; y < waveform.height; y += 20) {
+        waveformCtx.beginPath();
+        waveformCtx.moveTo(0, y);
+        waveformCtx.lineTo(waveform.width, y);
+        waveformCtx.stroke();
+      }
+    }
 
     // Date/Time Display
     function updateDateTime() {
       const now = new Date();
-      document.getElementById('dateTimeDisplay').textContent = 
-        `${now.getFullYear()}/${String(now.getMonth()+1).padStart(2,'0')}/${String(now.getDate()).padStart(2,'0')} ` +
-        `${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}:${String(now.getSeconds()).padStart(2,'0')}`;
+      document.getElementById('dateTimeDisplay').innerHTML = `
+        ${now.toLocaleDateString('en-US', {
+          year: 'numeric',
+          month: 'short',
+          day: 'numeric'
+        })}<br>
+        ${now.toLocaleTimeString('en-US', {
+          hour: '2-digit',
+          minute: '2-digit',
+          second: '2-digit'
+        })}
+      `;
     }
     setInterval(updateDateTime, 1000);
-    updateDateTime();
 
-    // Voice Recording
-    async function startRecording() {
-      try {
-        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-        mediaRecorder = new MediaRecorder(stream);
-        audioChunks = [];
-        
-        mediaRecorder.ondataavailable = e => audioChunks.push(e.data);
-        mediaRecorder.onstop = () => {
-          const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
-          // Handle audio processing here
-        };
+    // Voice Recording System
+    startVoiceButton.addEventListener('click', async () => {
+      if (!isRecording) {
+        try {
+          const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+          mediaRecorder = new MediaRecorder(stream);
+          
+          mediaRecorder.ondataavailable = e => audioChunks.push(e.data);
+          mediaRecorder.onstop = () => {
+            const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+            // Handle audio blob here
+          };
 
-        mediaRecorder.start();
-        isRecording = true;
-        startVoiceButton.textContent = 'Stop Voice';
-        startVoiceButton.classList.add('recording');
-        document.getElementById('redDot').style.display = 'block';
-        startCountdown();
-        visualizeAudio(stream);
-      } catch (err) {
-        alert('Microphone access required!');
-      }
-    }
-
-    function stopRecording() {
-      if (mediaRecorder && isRecording) {
+          mediaRecorder.start();
+          isRecording = true;
+          startVoiceButton.textContent = 'Stop Voice';
+          startVoiceButton.classList.add('recording');
+          document.getElementById('redDot').style.display = 'block';
+          startCountdown();
+          visualizeAudio(stream);
+        } catch (err) {
+          alert('Microphone access required!');
+        }
+      } else {
         mediaRecorder.stop();
         isRecording = false;
         startVoiceButton.textContent = 'Start Voice';
         startVoiceButton.classList.remove('recording');
         document.getElementById('redDot').style.display = 'none';
         clearInterval(countdownInterval);
-        cancelAnimationFrame(animationId);
       }
-    }
+    });
 
     // Audio Visualization
     function visualizeAudio(stream) {
-      audioContext = new (window.AudioContext || window.webkitAudioContext)();
+      const audioContext = new (window.AudioContext || window.webkitAudioContext)();
       const source = audioContext.createMediaStreamSource(stream);
       const analyser = audioContext.createAnalyser();
       
@@ -277,8 +348,8 @@
         waveformCtx.fillStyle = 'rgba(0, 0, 0, 0.1)';
         waveformCtx.fillRect(0, 0, waveform.width, waveform.height);
         
-        waveformCtx.strokeStyle = '#FFFF00';
         waveformCtx.lineWidth = 2;
+        waveformCtx.strokeStyle = '#00FFFF';
         waveformCtx.beginPath();
 
         const sliceWidth = waveform.width * 1.0 / bufferLength;
@@ -304,11 +375,10 @@
     function startCountdown() {
       let seconds = MAX_RECORD_TIME;
       countdownInterval = setInterval(() => {
-        const hours = Math.floor(seconds / 3600);
-        const minutes = Math.floor((seconds % 3600) / 60);
+        const mins = Math.floor(seconds / 60);
         const secs = seconds % 60;
         document.getElementById('countdownDisplay').textContent = 
-          `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+          `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
         if (seconds-- <= 0) clearInterval(countdownInterval);
       }, 1000);
     }
@@ -321,52 +391,56 @@
       }
 
       const loading = document.getElementById('loadingIndicator');
-      const generatedImage = document.getElementById('generatedImage');
       loading.style.display = 'flex';
-      
+
       try {
-        // Simulated API call
-        await new Promise(resolve => setTimeout(resolve, 1500));
-        generatedImage.src = `https://source.unsplash.com/random/800x600/?${styleSelect.value},art`;
+        // Simulated API Call
+        const prompt = `${activityInput.value} (${styleSelect.options[styleSelect.selectedIndex].text})`;
+        const generatedImage = document.getElementById('generatedImage');
+        
+        // Add to mood history
+        addHistoryEntry(prompt);
+        
+        // Simulated image URL
+        generatedImage.src = 'https://via.placeholder.com/500x300/00ffff/000?text=Generated+Image';
         generatedImage.style.display = 'block';
         document.getElementById('beepSound').play();
       } catch (error) {
-        alert('Image generation failed: ' + error.message);
+        alert('Generation error: ' + error.message);
       } finally {
         loading.style.display = 'none';
       }
     });
 
-    // Save Functionality
-    saveButton.addEventListener('click', () => {
-      const image = document.getElementById('generatedImage');
-      if (!image.src || image.style.display === 'none') {
-        alert('No image to save!');
-        return;
-      }
-
-      // Save image
-      const link = document.createElement('a');
-      link.download = 'mood-art.png';
-      link.href = image.src;
-      link.click();
-
-      // Add to mood history
+    // Mood History Management
+    function addHistoryEntry(text) {
       const entry = document.createElement('div');
-      entry.className = 'mood-entry';
+      entry.className = 'history-entry';
       entry.innerHTML = `
-        <span>${new Date().toLocaleDateString('en-CA')} - ${activityInput.value}</span>
-        <button class="delete-btn" onclick="this.parentElement.remove()">✕</button>
+        <div class="timestamp">${new Date().toLocaleString()}</div>
+        <div class="entry-content" contenteditable="true">${text}</div>
+        <div class="entry-actions">
+          <button class="entry-btn delete-btn">✕</button>
+        </div>
       `;
+      
+      entry.querySelector('.delete-btn').addEventListener('click', () => entry.remove());
       document.getElementById('moodHistory').prepend(entry);
+    }
+
+    // Save Functionality
+    document.getElementById('saveImage').addEventListener('click', () => {
+      const image = document.getElementById('generatedImage');
+      if (image.src) {
+        const link = document.createElement('a');
+        link.download = 'mood-art.png';
+        link.href = image.src;
+        link.click();
+        document.getElementById('saveSound').play();
+      }
     });
 
-    // Event Listeners
-    startVoiceButton.addEventListener('click', () => {
-      if (!isRecording) startRecording();
-      else stopRecording();
-    });
-
+    // Redo Functionality
     document.getElementById('redo').addEventListener('click', () => {
       activityInput.value = '';
       styleSelect.value = 'none';
