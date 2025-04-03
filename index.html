@@ -1,165 +1,75 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>MIA - Debug Transcription</title>
-</head>
-<body>
-  <div>
-    <h2>Transcription Debug</h2>
-    <button id="startVoice">Start Voice</button>
-    <div id="transcribingIndicator" style="display:none;">Listening...</div>
-    <textarea id="activityInput" rows="4" placeholder="Describe your mood..."></textarea>
-  </div>
+const express = require('express');
+const cors = require('cors');
+const multer = require('multer');
+const fetch = require('node-fetch');
+const path = require('path');
 
-  <script>
-    const activityInput = document.getElementById('activityInput');
-    const transcribingIndicator = document.getElementById('transcribingIndicator');
-    const startVoiceButton = document.getElementById('startVoice');
+const app = express();
+const upload = multer({ storage: multer.memoryStorage() });
 
-    let socket, audioContext, mediaStream, workletNode;
-    let isRecording = false;
+// CORS for frontend access (adjust as needed)
+app.use(cors({
+  origin: ['https://synthcalm.github.io', 'https://synthcalm.com'],
+  methods: ['GET', 'POST'],
+  credentials: true
+}));
+app.use(express.json());
 
-    async function unlockAudioContextAndMic() {
-      try {
-        audioContext = new (window.AudioContext || window.webkitAudioContext)();
-        if (audioContext.state === 'suspended') {
-          await audioContext.resume();
-        }
+// Health Check
+app.get('/health', (req, res) => {
+  console.log('Health check requested');
+  res.status(200).json({ status: 'OK' });
+});
 
-        mediaStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-        return true;
-      } catch (e) {
-        alert("Microphone access failed: " + e.message);
-        return false;
-      }
-    }
+// ✅ Token endpoint for AssemblyAI WebSocket auth
+app.get('/assemblyai-token', (req, res) => {
+  const token = process.env.ASSEMBLYAI_TOKEN;
+  if (!token) {
+    console.error("❌ AssemblyAI token missing from environment.");
+    return res.status(500).json({ error: "Token not configured" });
+  }
+  res.status(200).json({ token });
+});
 
-    async function startRecording() {
-      try {
-        const { token } = await fetch("https://mood-into-art-backend.onrender.com/assemblyai-token")
-          .then(res => res.json());
+// 🎨 Image generation via Stability AI
+app.post('/generate', async (req, res) => {
+  try {
+    const { prompt } = req.body;
+    if (!prompt) return res.status(400).json({ error: 'Prompt is required' });
 
-        socket = new WebSocket(`wss://api.assemblyai.com/v2/realtime/ws?sample_rate=16000&token=${token}`);
-
-        socket.onmessage = (msg) => {
-          const data = JSON.parse(msg.data);
-          console.log("📥 AssemblyAI message:", data);
-
-          if (data.text) {
-            console.log("📝 Transcription received:", data.text);
-            activityInput.value = data.text;
-          }
-        };
-
-        socket.onopen = async () => {
-          transcribingIndicator.style.display = 'block';
-
-          await audioContext.audioWorklet.addModule(URL.createObjectURL(new Blob([`
-            class AudioProcessor extends AudioWorkletProcessor {
-              constructor() {
-                super();
-              }
-              process(inputs) {
-                const input = inputs[0]?.[0];
-                if (input && input.length > 0) {
-                  const downsampled = downsampleBuffer(input, sampleRate, 16000);
-                  const int16 = floatTo16BitPCM(downsampled);
-                  this.port.postMessage(int16);
-                }
-                return true;
-              }
-            }
-            function floatTo16BitPCM(input) {
-              const len = input.length;
-              const result = new Int16Array(len);
-              for (let i = 0; i < len; i++) {
-                result[i] = Math.max(-1, Math.min(1, input[i])) * 32767;
-              }
-              return result.buffer;
-            }
-            function downsampleBuffer(buffer, sampleRate, outRate) {
-              if (outRate === sampleRate) return buffer;
-              const sampleRateRatio = sampleRate / outRate;
-              const newLength = Math.round(buffer.length / sampleRateRatio);
-              const result = new Float32Array(newLength);
-              let offset = 0;
-              for (let i = 0; i < newLength; i++) {
-                const nextOffset = Math.round((i + 1) * sampleRateRatio);
-                let sum = 0, count = 0;
-                for (let j = offset; j < nextOffset && j < buffer.length; j++) {
-                  sum += buffer[j];
-                  count++;
-                }
-                result[i] = sum / count;
-                offset = nextOffset;
-              }
-              return result;
-            }
-            registerProcessor('audio-processor', AudioProcessor);
-          `], { type: "application/javascript" })));
-
-          const source = audioContext.createMediaStreamSource(mediaStream);
-          workletNode = new AudioWorkletNode(audioContext, 'audio-processor');
-
-          workletNode.port.onmessage = (e) => {
-            if (socket.readyState === WebSocket.OPEN) {
-              const base64Audio = btoa(String.fromCharCode(...new Uint8Array(e.data)));
-              socket.send(base64Audio);
-              console.log("📤 Sent audio chunk (base64):", base64Audio.slice(0, 50) + "...");
-            }
-          };
-
-          source.connect(workletNode);
-          workletNode.connect(audioContext.destination);
-        };
-
-        socket.onclose = () => {
-          console.warn("🛑 WebSocket closed");
-          stopRecording();
-        };
-
-        socket.onerror = (e) => {
-          console.error("❌ WebSocket error:", e);
-        };
-
-      } catch (e) {
-        alert("Failed to start recording: " + e.message);
-      }
-    }
-
-    function stopRecording() {
-      try {
-        if (socket && socket.readyState === WebSocket.OPEN) socket.close();
-        if (audioContext && audioContext.state !== 'closed') audioContext.close();
-        if (mediaStream) mediaStream.getTracks().forEach(track => track.stop());
-        transcribingIndicator.style.display = 'none';
-        console.log("🛑 Recording stopped");
-      } catch (err) {
-        console.warn("⚠️ Error during cleanup:", err.message);
-      }
-    }
-
-    startVoiceButton.addEventListener("click", async () => {
-      if (!isRecording) {
-        isRecording = true;
-        startVoiceButton.textContent = "Stop Voice";
-
-        const unlocked = await unlockAudioContextAndMic();
-        if (unlocked) {
-          await startRecording();
-        } else {
-          isRecording = false;
-          startVoiceButton.textContent = "Start Voice";
-        }
-
-      } else {
-        isRecording = false;
-        startVoiceButton.textContent = "Start Voice";
-        stopRecording();
-      }
+    const response = await fetch('https://api.stability.ai/v1/generation/text-to-image', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${process.env.STABILITY_API_KEY}`
+      },
+      body: JSON.stringify({
+        text_prompts: [{ text: prompt }],
+        cfg_scale: 7,
+        height: 512,
+        width: 512,
+        samples: 1,
+        steps: 30
+      })
     });
-  </script>
-</body>
-</html>
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Stability API error: ${errorText}`);
+    }
+
+    const data = await response.json();
+    const imageBase64 = data.artifacts[0].base64;
+    res.status(200).json({ image: `data:image/png;base64,${imageBase64}` });
+
+  } catch (err) {
+    console.error('Image generation error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Start Server
+const PORT = process.env.PORT || 5000;
+app.listen(PORT, () => {
+  console.log(`✅ Server is live on port ${PORT}`);
+});
