@@ -38,15 +38,22 @@
 
     async function startRecording() {
       try {
-        const response = await fetch("https://mood-into-art-backend.onrender.com/assembly056ai-token");
-        if (!response.ok) throw new Error("Failed to fetch AssemblyAI token");
+        const response = await fetch("https://mood-into-art-backend.onrender.com/assemblyai-token");
+        if (!response.ok) throw new Error(`Token fetch failed: ${response.statusText}`);
         const { token } = await response.json();
+        if (!token || typeof token !== 'string') throw new Error("Invalid token received");
 
         socket = new WebSocket(`wss://api.assemblyai.com/v2/realtime/ws?sample_rate=16000&token=${token}`);
 
         socket.onopen = async () => {
           console.log("✅ WebSocket connection opened");
           transcribingIndicator.style.display = 'block';
+
+          if (audioContext.state === 'closed') {
+            console.error("AudioContext already closed, aborting setup");
+            stopRecording();
+            return;
+          }
 
           await audioContext.audioWorklet.addModule(URL.createObjectURL(new Blob([`
             class AudioProcessor extends AudioWorkletProcessor {
@@ -111,7 +118,11 @@
         socket.onmessage = (msg) => {
           const data = JSON.parse(msg.data);
           console.log("📥 AssemblyAI message:", data);
-          if (data.message_type === "FinalTranscript" && data.text) {
+          if (data.error) {
+            console.error("AssemblyAI error:", data.error);
+            alert("AssemblyAI error: " + data.error);
+            stopRecording();
+          } else if (data.message_type === "FinalTranscript" && data.text) {
             console.log("📝 Final transcription:", data.text);
             activityInput.value = data.text;
           } else if (data.message_type === "PartialTranscript" && data.text) {
