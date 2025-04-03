@@ -3,11 +3,11 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>MIA - Worklet Debug Version</title>
+  <title>MIA - Clean AudioWorklet</title>
 </head>
 <body>
   <div>
-    <h2>Debug Voice Capture (Audio Flow Check)</h2>
+    <h2>Final Voice Capture (Clean Version)</h2>
     <button id="startVoice">Start Voice</button>
     <div id="transcribingIndicator" style="display:none;">Listening...</div>
     <textarea id="activityInput" rows="4" placeholder="Describe your mood..."></textarea>
@@ -51,16 +51,13 @@
         socket.onmessage = (msg) => {
           const data = JSON.parse(msg.data);
           if (data.text) {
-            console.log("📝 Transcription:", data.text);
             activityInput.value = data.text;
           }
         };
 
         socket.onopen = async () => {
-          console.log("✅ WebSocket connected");
           transcribingIndicator.style.display = 'block';
 
-          console.log("🎧 Adding AudioWorklet...");
           await audioContext.audioWorklet.addModule(URL.createObjectURL(new Blob([`
             class AudioProcessor extends AudioWorkletProcessor {
               constructor() {
@@ -69,12 +66,9 @@
               process(inputs) {
                 const input = inputs[0]?.[0];
                 if (input && input.length > 0) {
-                  console.log("📈 Processing input audio: buffer length =", input.length);
                   const downsampled = downsampleBuffer(input, sampleRate, 16000);
                   const int16 = floatTo16BitPCM(downsampled);
                   this.port.postMessage(int16);
-                } else {
-                  console.log("🚫 No audio input detected in process()");
                 }
                 return true;
               }
@@ -117,18 +111,11 @@
             }
           };
 
-          try {
-            console.log("🔗 Connecting source → worklet → destination...");
-            source.connect(workletNode);
-            workletNode.connect(audioContext.destination);
-            console.log("✅ Audio pipeline connected");
-          } catch (err) {
-            console.error("❌ Audio node connection failed:", err.message);
-          }
+          source.connect(workletNode);
+          workletNode.connect(audioContext.destination);
         };
 
         socket.onclose = () => {
-          console.log("🛑 WebSocket closed");
           stopRecording();
         };
 
@@ -137,7 +124,6 @@
         };
 
       } catch (e) {
-        console.error("❌ Error starting recording:", e.message);
         alert("Failed to start recording: " + e.message);
       }
     }
@@ -148,7 +134,6 @@
         if (audioContext && audioContext.state !== 'closed') audioContext.close();
         if (mediaStream) mediaStream.getTracks().forEach(track => track.stop());
         transcribingIndicator.style.display = 'none';
-        console.log("🛑 Recording stopped");
       } catch (err) {
         console.warn("⚠️ Error during cleanup:", err.message);
       }
@@ -156,7 +141,6 @@
 
     startVoiceButton.addEventListener("click", async () => {
       if (!isRecording) {
-        console.log("▶️ Starting voice capture...");
         isRecording = true;
         startVoiceButton.textContent = "Stop Voice";
 
@@ -169,7 +153,6 @@
         }
 
       } else {
-        console.log("⏹ Stopping voice capture...");
         isRecording = false;
         startVoiceButton.textContent = "Start Voice";
         stopRecording();
