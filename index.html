@@ -3,11 +3,11 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>MIA - Final AudioWorklet Fix</title>
+  <title>MIA - Worklet Debug Version</title>
 </head>
 <body>
   <div>
-    <h2>Final Voice Capture (Fully Safari Safe)</h2>
+    <h2>Debug Voice Capture (Audio Flow Check)</h2>
     <button id="startVoice">Start Voice</button>
     <div id="transcribingIndicator" style="display:none;">Listening...</div>
     <textarea id="activityInput" rows="4" placeholder="Describe your mood..."></textarea>
@@ -67,11 +67,14 @@
                 super();
               }
               process(inputs) {
-                const input = inputs[0][0];
-                if (input) {
+                const input = inputs[0]?.[0];
+                if (input && input.length > 0) {
+                  console.log("📈 Processing input audio: buffer length =", input.length);
                   const downsampled = downsampleBuffer(input, sampleRate, 16000);
                   const int16 = floatTo16BitPCM(downsampled);
                   this.port.postMessage(int16);
+                } else {
+                  console.log("🚫 No audio input detected in process()");
                 }
                 return true;
               }
