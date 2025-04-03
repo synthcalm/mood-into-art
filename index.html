@@ -25,10 +25,9 @@
     async function startRecording() {
       try {
         console.log("🔄 Requesting AssemblyAI token...");
-        const { token } = await fetch("https://api.assemblyai.com/v2/realtime/token", {
-          method: "POST",
-          headers: { authorization: ASSEMBLYAI_API_KEY }
-        }).then(res => res.json());
+        const { token } = await fetch("https://mood-into-art-backend.onrender.com/assemblyai-token")
+          .then(res => res.json());
+
 
         console.log("✅ Token received, connecting WebSocket...");
         socket = new WebSocket(`wss://api.assemblyai.com/v2/realtime/ws?sample_rate=16000&token=${token}`);
