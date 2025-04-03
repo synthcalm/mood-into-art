@@ -1,231 +1,451 @@
-<script>
-// Audio Recording and Visualization
-let audioContext, mediaRecorder, audioChunks = [];
-let isRecording = false;
-let countdownInterval;
-const MAX_RECORD_TIME = 30 * 60; // 30 minutes in seconds
-let animationId;
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MIA (Mood Into Art)</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 0;
+      background-color: #000;
+      color: #00FFFF;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+      overflow: auto;
+    }
+    .container {
+      width: 95%;
+      max-width: 500px;
+      padding: 20px;
+      border: 2px solid #00FFFF;
+      border-radius: 12px;
+      background-color: rgba(0, 0, 0, 0.9);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      margin: 20px 0;
+    }
+    canvas#waveform {
+      width: 100%;
+      height: 160px;
+      background-color: rgba(0, 0, 0, 0.5);
+      border: 1px solid #00FFFF;
+      margin-bottom: 10px;
+      background-image:
+        linear-gradient(to right, rgba(0, 255, 255, 0.3) 1px, transparent 1px),
+        linear-gradient(to bottom, rgba(0, 255, 255, 0.3) 1px, transparent 1px);
+      background-size: 20px 20px;
+    }
+    .dot-alert {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background-color: red;
+      animation: blink 1s infinite;
+      display: none;
+      margin-bottom: 10px;
+    }
+    @keyframes blink {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0; }
+    }
+    .footer-bar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      width: 100%;
+      font-size: 12px;
+      color: #00FFFF;
+      padding: 0 10px;
+      margin: 10px 0;
+    }
+    textarea, select {
+      width: 100%;
+      padding: 10px;
+      background-color: rgba(0, 0, 0, 0.8);
+      border: 2px solid #00FFFF;
+      color: #00FFFF;
+      margin-bottom: 10px;
+      resize: vertical;
+    }
+    .button-group {
+      width: 100%;
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 10px;
+      margin-top: 10px;
+    }
+    .button {
+      background-color: #000;
+      border: 2px solid #00FFFF;
+      color: #00FFFF;
+      padding: 10px;
+      cursor: pointer;
+      transition: all 0.3s ease;
+    }
+    .button:hover {
+      background-color: #00FFFF;
+      color: #000;
+    }
+    .button.recording {
+      background-color: #FFFF00;
+      color: #000;
+    }
+    #loadingIndicator {
+      display: none;
+      justify-content: center;
+      gap: 4px;
+      margin-top: 10px;
+    }
+    .dot {
+      width: 4px;
+      height: 4px;
+      background-color: #00FFFF;
+      border-radius: 50%;
+      opacity: 0;
+      animation: blink 1.6s infinite;
+    }
+    .dot:nth-child(1) { animation-delay: 0s; }
+    .dot:nth-child(2) { animation-delay: 0.4s; }
+    .dot:nth-child(3) { animation-delay: 0.8s; }
+    .dot:nth-child(4) { animation-delay: 1.2s; }
+    #generatedImage {
+      max-width: 100%;
+      border: 1px solid #00FFFF;
+      margin-top: 20px;
+      display: none;
+      background: #000;
+    }
+    .history-entry {
+      position: relative;
+      width: 100%;
+      margin: 8px 0;
+      padding: 10px;
+      border: 1px solid #00FFFF;
+      border-radius: 6px;
+    }
+    .entry-content {
+      width: calc(100% - 60px);
+      padding: 5px;
+      min-height: 20px;
+      background: transparent;
+      color: #00FFFF;
+    }
+    .entry-actions {
+      position: absolute;
+      top: 5px;
+      right: 5px;
+      display: flex;
+      gap: 5px;
+    }
+    .entry-btn {
+      background: none;
+      border: 1px solid #00FFFF;
+      color: #00FFFF;
+      cursor: pointer;
+      padding: 2px 5px;
+      font-size: 0.8em;
+    }
+    .entry-btn:hover {
+      background: #00FFFF;
+      color: #000;
+    }
+    #moodHistory {
+      max-height: 200px;
+      overflow-y: auto;
+      width: 100%;
+    }
+    .timestamp {
+      font-size: 0.8em;
+      color: #00FFFF;
+      opacity: 0.7;
+      margin-bottom: 5px;
+    }
+  </style>
+</head>
+<body>
+  <!-- Loading Overlay -->
+  <div id="initOverlay" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: black; z-index: 9999; display: flex; justify-content: center; align-items: center; color: #00FFFF;">
+    Initializing audio system...<br>Click anywhere to start
+  </div>
 
-// DOM Elements
-const startVoiceButton = document.getElementById('startVoice');
-const generateButton = document.getElementById('generate');
-const saveButton = document.getElementById('saveImage');
-const redoButton = document.getElementById('redo');
-const activityInput = document.getElementById('activityInput');
-const styleSelect = document.getElementById('styleSelect');
-const waveformCanvas = document.getElementById('waveform');
-const dateDisplay = document.getElementById('dateDisplay');
-const countdownDisplay = document.getElementById('countdownDisplay');
-const redDot = document.getElementById('redDot');
-const generatedImage = document.getElementById('generatedImage');
-const moodHistory = document.getElementById('moodHistory');
-
-// Initialize Canvas
-const waveformCtx = waveformCanvas.getContext('2d');
-waveformCanvas.width = waveformCanvas.offsetWidth;
-waveformCanvas.height = waveformCanvas.offsetHeight;
-
-// Date/Time Display
-function updateDateTime() {
-    const now = new Date();
-    dateDisplay.textContent = now.toLocaleDateString('en-US', {
-        year: 'numeric',
-        month: '2-digit',
-        day: '2-digit'
-    }).replace(/\//g, ' / ');
-}
-setInterval(updateDateTime, 1000);
-updateDateTime();
-
-// Countdown Timer
-function startCountdown() {
-    let secondsRemaining = MAX_RECORD_TIME;
-    countdownInterval = setInterval(() => {
-        if (secondsRemaining <= 0) {
-            stopRecording();
-            return;
-        }
-        
-        const hours = Math.floor(secondsRemaining / 3600);
-        const minutes = Math.floor((secondsRemaining % 3600) / 60);
-        const seconds = secondsRemaining % 60;
-        
-        countdownDisplay.textContent = 
-            `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
-        
-        secondsRemaining--;
-    }, 1000);
-}
-
-// Audio Visualization
-function visualizeAudio(stream) {
-    audioContext = new (window.AudioContext || window.webkitAudioContext)();
-    const source = audioContext.createMediaStreamSource(stream);
-    const analyser = audioContext.createAnalyser();
+  <div class="container">
+    <canvas id="waveform"></canvas>
     
-    source.connect(analyser);
-    analyser.fftSize = 2048;
-    const bufferLength = analyser.frequencyBinCount;
-    const dataArray = new Uint8Array(bufferLength);
+    <div class="footer-bar">
+      <div id="dateTimeDisplay"></div>
+      <div id="countdownDisplay">00:30:00</div>
+    </div>
 
-    function draw() {
-        analyser.getByteTimeDomainData(dataArray);
-        waveformCtx.fillStyle = 'rgba(0, 0, 0, 0.1)';
-        waveformCtx.fillRect(0, 0, waveformCanvas.width, waveformCanvas.height);
-        
-        waveformCtx.lineWidth = 2;
-        waveformCtx.strokeStyle = '#FFFF00';
+    <div class="dot-alert" id="redDot"></div>
+    <textarea id="activityInput" rows="4" placeholder="Describe your mood..."></textarea>
+    
+    <select id="styleSelect" style="text-align: center;">
+      <option value="none" selected disabled>Choose Style</option>
+      <option value="photo">Hyper-realistic Photo</option>
+      <option value="anime">Japanese Anime Style</option>
+      <option value="abstract">Abstract</option>
+      <option value="surrealism">Surrealism</option>
+      <option value="post-modern">Post-modern</option>
+      <option value="cyberpunk">Cyberpunk</option>
+      <option value="arabic-calligraphy">Arabic Calligraphy</option>
+      <option value="chinese-calligraphy">Chinese Calligraphy</option>
+      <option value="japanese-calligraphy">Japanese Calligraphy</option>
+      <option value="marvel">Marvel Comic</option>
+      <option value="art-deco">Art Deco</option>
+      <option value="impressionist">Impressionist</option>
+      <option value="pop-art">Pop Art</option>
+      <option value="digital-painting">Digital Painting</option>
+      <option value="minimalism">Minimalism</option>
+    </select>
+
+    <div class="button-group">
+      <button class="button" id="startVoice">Start Voice</button>
+      <button class="button" id="redo">Redo</button>
+      <button class="button" id="generate">Generate Image</button>
+      <button class="button" id="saveImage">Save</button>
+    </div>
+
+    <div id="loadingIndicator">
+      <div class="dot"></div>
+      <div class="dot"></div>
+      <div class="dot"></div>
+      <div class="dot"></div>
+    </div>
+
+    <img id="generatedImage" />
+    <div id="moodHistory"></div>
+
+    <audio id="beepSound" src="https://actions.google.com/sounds/v1/cartoon/clang_and_wobble.ogg"></audio>
+    <audio id="chimeSound" src="https://actions.google.com/sounds/v1/cartoon/wood_plank_flicks.ogg"></audio>
+    <audio id="saveSound" src="https://actions.google.com/sounds/v1/cartoon/pop.ogg"></audio>
+  </div>
+
+  <script>
+    // Full JavaScript Implementation
+    // Audio and Recording System
+    let audioContext, mediaRecorder, audioChunks = [];
+    let isRecording = false, countdownInterval;
+    const MAX_RECORD_TIME = 30 * 60;
+    let animationId;
+
+    // DOM Elements
+    const startVoiceButton = document.getElementById('startVoice');
+    const generateButton = document.getElementById('generate');
+    const activityInput = document.getElementById('activityInput');
+    const styleSelect = document.getElementById('styleSelect');
+    const waveform = document.getElementById('waveform');
+    const waveformCtx = waveform.getContext('2d');
+
+    // Initialization
+    document.getElementById('initOverlay').addEventListener('click', async () => {
+      try {
+        audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        await audioContext.resume();
+        document.getElementById('initOverlay').style.display = 'none';
+        initWaveform();
+        updateDateTime();
+      } catch (err) {
+        alert('Initialization failed: ' + err.message);
+      }
+    });
+
+    // Waveform Visualization
+    function initWaveform() {
+      waveform.width = waveform.offsetWidth;
+      waveform.height = waveform.offsetHeight;
+      drawWaveformGrid();
+    }
+
+    function drawWaveformGrid() {
+      waveformCtx.strokeStyle = 'rgba(0, 255, 255, 0.2)';
+      waveformCtx.lineWidth = 0.5;
+      
+      // Vertical lines
+      for(let x = 0; x < waveform.width; x += 20) {
         waveformCtx.beginPath();
-
-        const sliceWidth = waveformCanvas.width * 1.0 / bufferLength;
-        let x = 0;
-
-        for (let i = 0; i < bufferLength; i++) {
-            const v = dataArray[i] / 128.0;
-            const y = v * waveformCanvas.height / 2;
-            
-            if (i === 0) waveformCtx.moveTo(x, y);
-            else waveformCtx.lineTo(x, y);
-            
-            x += sliceWidth;
-        }
-
+        waveformCtx.moveTo(x, 0);
+        waveformCtx.lineTo(x, waveform.height);
         waveformCtx.stroke();
-        animationId = requestAnimationFrame(draw);
+      }
+      
+      // Horizontal lines
+      for(let y = 0; y < waveform.height; y += 20) {
+        waveformCtx.beginPath();
+        waveformCtx.moveTo(0, y);
+        waveformCtx.lineTo(waveform.width, y);
+        waveformCtx.stroke();
+      }
     }
-    draw();
-}
 
-// Voice Recording
-async function startRecording() {
-    try {
-        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-        mediaRecorder = new MediaRecorder(stream);
-        audioChunks = [];
-        
-        mediaRecorder.ondataavailable = event => {
-            audioChunks.push(event.data);
-        };
-        
-        mediaRecorder.onstop = () => {
+    // Date/Time Display
+    function updateDateTime() {
+      const now = new Date();
+      document.getElementById('dateTimeDisplay').innerHTML = `
+        ${now.toLocaleDateString('en-US', {
+          year: 'numeric',
+          month: 'short',
+          day: 'numeric'
+        })}<br>
+        ${now.toLocaleTimeString('en-US', {
+          hour: '2-digit',
+          minute: '2-digit',
+          second: '2-digit'
+        })}
+      `;
+    }
+    setInterval(updateDateTime, 1000);
+
+    // Voice Recording System
+    startVoiceButton.addEventListener('click', async () => {
+      if (!isRecording) {
+        try {
+          const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+          mediaRecorder = new MediaRecorder(stream);
+          
+          mediaRecorder.ondataavailable = e => audioChunks.push(e.data);
+          mediaRecorder.onstop = () => {
             const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
-            // Process audio here if needed
-        };
+            // Handle audio blob here
+          };
 
-        mediaRecorder.start();
-        isRecording = true;
-        startVoiceButton.textContent = 'Stop Voice';
-        startVoiceButton.classList.add('recording');
-        redDot.style.display = 'block';
-        startCountdown();
-        visualizeAudio(stream);
-    } catch (err) {
-        alert('Microphone access required!');
-    }
-}
-
-function stopRecording() {
-    if (mediaRecorder && isRecording) {
+          mediaRecorder.start();
+          isRecording = true;
+          startVoiceButton.textContent = 'Stop Voice';
+          startVoiceButton.classList.add('recording');
+          document.getElementById('redDot').style.display = 'block';
+          startCountdown();
+          visualizeAudio(stream);
+        } catch (err) {
+          alert('Microphone access required!');
+        }
+      } else {
         mediaRecorder.stop();
         isRecording = false;
         startVoiceButton.textContent = 'Start Voice';
         startVoiceButton.classList.remove('recording');
-        redDot.style.display = 'none';
+        document.getElementById('redDot').style.display = 'none';
         clearInterval(countdownInterval);
-        cancelAnimationFrame(animationId);
+      }
+    });
+
+    // Audio Visualization
+    function visualizeAudio(stream) {
+      const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+      const source = audioContext.createMediaStreamSource(stream);
+      const analyser = audioContext.createAnalyser();
+      
+      source.connect(analyser);
+      analyser.fftSize = 2048;
+      const bufferLength = analyser.frequencyBinCount;
+      const dataArray = new Uint8Array(bufferLength);
+
+      function draw() {
+        analyser.getByteTimeDomainData(dataArray);
+        waveformCtx.fillStyle = 'rgba(0, 0, 0, 0.1)';
+        waveformCtx.fillRect(0, 0, waveform.width, waveform.height);
+        
+        waveformCtx.lineWidth = 2;
+        waveformCtx.strokeStyle = '#00FFFF';
+        waveformCtx.beginPath();
+
+        const sliceWidth = waveform.width * 1.0 / bufferLength;
+        let x = 0;
+
+        for (let i = 0; i < bufferLength; i++) {
+          const v = dataArray[i] / 128.0;
+          const y = v * waveform.height / 2;
+          
+          if (i === 0) waveformCtx.moveTo(x, y);
+          else waveformCtx.lineTo(x, y);
+          
+          x += sliceWidth;
+        }
+
+        waveformCtx.stroke();
+        animationId = requestAnimationFrame(draw);
+      }
+      draw();
     }
-}
 
-// Style Select Options
-const artStyles = [
-    'Hyper-realistic Photo',
-    'Japanese Anime Style',
-    'Abstract',
-    'Surrealism',
-    'Post-modern',
-    'Cyberpunk',
-    'Arabic Calligraphy',
-    'Chinese Calligraphy',
-    'Japanese Calligraphy',
-    'Marvel Comic',
-    'Art Deco',
-    'Impressionist',
-    'Pop Art',
-    'Digital Painting',
-    'Minimalism'
-];
+    // Countdown Timer
+    function startCountdown() {
+      let seconds = MAX_RECORD_TIME;
+      countdownInterval = setInterval(() => {
+        const mins = Math.floor(seconds / 60);
+        const secs = seconds % 60;
+        document.getElementById('countdownDisplay').textContent = 
+          `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+        if (seconds-- <= 0) clearInterval(countdownInterval);
+      }, 1000);
+    }
 
-artStyles.forEach(style => {
-    const option = document.createElement('option');
-    option.value = style.toLowerCase().replace(/ /g, '-');
-    option.textContent = style;
-    styleSelect.appendChild(option);
-});
-
-// Image Generation
-generateButton.addEventListener('click', async () => {
-    if (!activityInput.value.trim() || styleSelect.value === 'none') {
+    // Image Generation
+    generateButton.addEventListener('click', async () => {
+      if (!activityInput.value.trim() || styleSelect.value === 'none') {
         alert('Please describe your mood and select a style!');
         return;
-    }
+      }
 
-    const loadingIndicator = document.getElementById('loadingIndicator');
-    loadingIndicator.style.display = 'flex';
-    
-    try {
-        // Simulated API call with style-based image
-        await new Promise(resolve => setTimeout(resolve, 1500));
-        generatedImage.src = `https://source.unsplash.com/random/800x600/?${styleSelect.value},art`;
+      const loading = document.getElementById('loadingIndicator');
+      loading.style.display = 'flex';
+
+      try {
+        // Simulated API Call
+        const prompt = `${activityInput.value} (${styleSelect.options[styleSelect.selectedIndex].text})`;
+        const generatedImage = document.getElementById('generatedImage');
+        
+        // Add to mood history
+        addHistoryEntry(prompt);
+        
+        // Simulated image URL
+        generatedImage.src = 'https://via.placeholder.com/500x300/00ffff/000?text=Generated+Image';
         generatedImage.style.display = 'block';
-    } catch (error) {
-        alert('Image generation failed: ' + error.message);
-    } finally {
-        loadingIndicator.style.display = 'none';
-    }
-});
+        document.getElementById('beepSound').play();
+      } catch (error) {
+        alert('Generation error: ' + error.message);
+      } finally {
+        loading.style.display = 'none';
+      }
+    });
 
-// Save Functionality
-saveButton.addEventListener('click', () => {
-    if (!generatedImage.src || !activityInput.value.trim()) {
-        alert('No image to save!');
-        return;
+    // Mood History Management
+    function addHistoryEntry(text) {
+      const entry = document.createElement('div');
+      entry.className = 'history-entry';
+      entry.innerHTML = `
+        <div class="timestamp">${new Date().toLocaleString()}</div>
+        <div class="entry-content" contenteditable="true">${text}</div>
+        <div class="entry-actions">
+          <button class="entry-btn delete-btn">✕</button>
+        </div>
+      `;
+      
+      entry.querySelector('.delete-btn').addEventListener('click', () => entry.remove());
+      document.getElementById('moodHistory').prepend(entry);
     }
-    
-    // Save image
-    const link = document.createElement('a');
-    link.download = 'mood-art.png';
-    link.href = generatedImage.src;
-    link.click();
-    
-    // Add to mood history
-    const entry = document.createElement('div');
-    entry.className = 'mood-entry';
-    entry.innerHTML = `
-        <span>${new Date().toLocaleDateString('en-US', {
-            year: 'numeric',
-            month: '2-digit',
-            day: '2-digit'
-        })} - ${activityInput.value}</span>
-        <button class="delete-btn" onclick="this.parentElement.remove()">✕</button>
-    `;
-    moodHistory.prepend(entry);
-    
-    activityInput.value = '';
-    styleSelect.value = 'none';
-});
 
-// Event Listeners
-startVoiceButton.addEventListener('click', () => {
-    if (!isRecording) {
-        startRecording();
-    } else {
-        stopRecording();
-    }
-});
+    // Save Functionality
+    document.getElementById('saveImage').addEventListener('click', () => {
+      const image = document.getElementById('generatedImage');
+      if (image.src) {
+        const link = document.createElement('a');
+        link.download = 'mood-art.png';
+        link.href = image.src;
+        link.click();
+        document.getElementById('saveSound').play();
+      }
+    });
 
-redoButton.addEventListener('click', () => {
-    activityInput.value = '';
-    styleSelect.value = 'none';
-    generatedImage.style.display = 'none';
-});
-</script>
+    // Redo Functionality
+    document.getElementById('redo').addEventListener('click', () => {
+      activityInput.value = '';
+      styleSelect.value = 'none';
+      document.getElementById('generatedImage').style.display = 'none';
+    });
+  </script>
+</body>
+</html>
