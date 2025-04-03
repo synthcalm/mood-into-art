@@ -56,6 +56,7 @@
         socket.onopen = async () => {
           transcribingIndicator.style.display = 'block';
 
+          // Add the audio processor code into the browser
           await audioContext.audioWorklet.addModule(URL.createObjectURL(new Blob([`
             class AudioProcessor extends AudioWorkletProcessor {
               constructor() {
@@ -71,6 +72,7 @@
                 return true;
               }
             }
+
             function floatTo16BitPCM(input) {
               const len = input.length;
               const result = new Int16Array(len);
@@ -79,6 +81,7 @@
               }
               return result.buffer;
             }
+
             function downsampleBuffer(buffer, sampleRate, outRate) {
               if (outRate === sampleRate) return buffer;
               const sampleRateRatio = sampleRate / outRate;
@@ -97,17 +100,18 @@
               }
               return result;
             }
+
             registerProcessor('audio-processor', AudioProcessor);
           `], { type: "application/javascript" })));
 
           const source = audioContext.createMediaStreamSource(mediaStream);
           workletNode = new AudioWorkletNode(audioContext, 'audio-processor');
 
+          // 🔥 Send raw audio directly (no base64!)
           workletNode.port.onmessage = (e) => {
             if (socket.readyState === WebSocket.OPEN) {
-              const base64Audio = btoa(String.fromCharCode(...new Uint8Array(e.data)));
-              socket.send(base64Audio);
-              console.log("📤 Sent audio chunk (base64):", base64Audio.slice(0, 50) + "...");
+              socket.send(e.data);  // e.data is raw binary buffer
+              console.log("📤 Sent audio chunk (raw)");
             }
           };
 
