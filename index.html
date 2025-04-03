@@ -1,101 +1,241 @@
-<!-- Add this to the <style> section -->
-<style>
-    /* Fix canvas visibility */
-    canvas#grid, canvas#waveform {
-        background-color: rgba(0, 0, 0, 0.8);  /* Increased contrast */
-    }
+<!DOCTYPE html>
+<html>
+<head>
+    <style>
+        canvas#grid, canvas#waveform {
+            background-color: rgba(0, 0, 0, 0.8);
+        }
 
-    /* Ensure elements are visible */
-    #dateDisplay, #countdownDisplay {
-        font-size: 12px;  /* Increased font size */
-        color: #00FF00 !important;
-    }
+        #dateDisplay, #countdownDisplay {
+            font-size: 12px;
+            color: #00FF00 !important;
+        }
 
-    /* Fix button visibility */
-    .button {
-        background-color: #000000;
-        border: 2px solid #00FF00 !important;
-    }
-</style>
+        .button {
+            background-color: #000000;
+            border: 2px solid #00FF00 !important;
+            color: #00FF00;
+            padding: 5px 10px;
+            margin: 5px;
+            cursor: pointer;
+        }
 
-<!-- Add this right after opening <body> tag -->
+        #moodLog {
+            width: 300px;
+            height: 150px;
+            background-color: rgba(0, 0, 0, 0.8);
+            color: #00FF00;
+            border: 1px solid #00FF00;
+            overflow-y: auto;
+            padding: 10px;
+            margin-top: 10px;
+        }
+
+        .log-entry {
+            margin: 5px 0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        #artStyle {
+            background-color: #000000;
+            color: #00FF00;
+            border: 1px solid #00FF00;
+            margin: 5px;
+            padding: 5px;
+        }
+    </style>
+</head>
 <body>
-    <!-- Loading overlay -->
-    <div id="initOverlay" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: black; z-index: 9999; display: flex; justify-content: center; align-items: center; color: #00FF00;">
-        Initializing audio system...<br>Click anywhere to start
+    <div style="display: flex; flex-direction: column; align-items: center; background: black; color: #00FF00; height: 100vh;">
+        <div id="datetimeDisplay" style="margin: 10px;">
+            <span id="dateDisplay"></span>
+            <span id="countdownDisplay" style="margin-left: 20px;">Countdown: 10</span>
+        </div>
+        
+        <canvas id="grid" style="width: 300px; height: 300px;"></canvas>
+        <canvas id="waveform" style="width: 300px; height: 100px; margin-top: 10px;"></canvas>
+        
+        <textarea id="voiceText" style="width: 300px; height: 100px; margin-top: 10px; background: black; color: #00FF00; border: 1px solid #00FF00;"></textarea>
+        
+        <div style="margin-top: 10px;">
+            <button class="button" onclick="startVoice()">Start Voice</button>
+            <select id="artStyle">
+                <option value="Hyper-realistic Photo">Hyper-realistic Photo</option>
+                <option value="Japanese Anime Style">Japanese Anime Style</option>
+                <option value="Abstract">Abstract</option>
+                <option value="Surrealism">Surrealism</option>
+                <option value="Post-modern">Post-modern</option>
+                <option value="Cyberpunk">Cyberpunk</option>
+                <option value="Arabic Calligraphy">Arabic Calligraphy</option>
+                <option value="Chinese Calligraphy">Chinese Calligraphy</option>
+                <option value="Japanese Calligraphy">Japanese Calligraphy</option>
+                <option value="Marvel Comic">Marvel Comic</option>
+                <option value="Art Deco">Art Deco</option>
+                <option value="Impressionist">Impressionist</option>
+                <option value="Pop Art">Pop Art</option>
+                <option value="Digital Painting">Digital Painting</option>
+                <option value="Minimalism">Minimalism</option>
+            </select>
+            <button class="button" onclick="generateImage()">Generate Image</button>
+            <button class="button" onclick="saveEntry()">Save</button>
+        </div>
+        
+        <div id="moodLog">
+            <h3 style="margin: 0 0 10px 0;">Mood Log</h3>
+        </div>
     </div>
 
-<script>
-    // Add this initialization code at the very top of your script
-    // ================== CRITICAL FIXES ==================
-    // 1. Audio context initialization
-    let audioContextInitialized = false;
-    
-    document.getElementById('initOverlay').addEventListener('click', async () => {
-        try {
-            audioContext = new (window.AudioContext || window.webkitAudioContext)();
-            await audioContext.resume();
-            document.getElementById('initOverlay').style.display = 'none';
-            audioContextInitialized = true;
-            
-            // Initialize grid after audio context
-            drawGrid();
-            window.dispatchEvent(new Event('resize'));
-        } catch (err) {
-            alert('Audio system initialization failed: ' + err.message);
-        }
-    });
-
-    // 2. Modified grid drawing function
-    function drawGrid() {
+    <script>
+        let audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        let analyser, source, stream;
         const grid = document.getElementById('grid');
+        const waveform = document.getElementById('waveform');
         const gridCtx = grid.getContext('2d');
-        grid.width = grid.clientWidth;
-        grid.height = grid.clientHeight;
-        
-        // Improved grid visibility
-        gridCtx.strokeStyle = 'rgba(0, 255, 0, 0.5)'; // Changed to green
-        gridCtx.lineWidth = 1; // Thicker lines
-        
-        // Vertical lines
-        for (let i = 0; i <= grid.width; i += 20) {
-            gridCtx.beginPath();
-            gridCtx.moveTo(i, 0);
-            gridCtx.lineTo(i, grid.height);
-            gridCtx.stroke();
-        }
-        
-        // Horizontal lines
-        for (let j = 0; j <= grid.height; j += 20) {
-            gridCtx.beginPath();
-            gridCtx.moveTo(0, j);
-            gridCtx.lineTo(grid.width, j);
-            gridCtx.stroke();
-        }
-    }
+        const waveformCtx = waveform.getContext('2d');
+        let countdown = 10;
+        let countdownInterval;
+        const recognition = new (window.SpeechRecognition || window.webkitSpeechRecognition)();
 
-    // 3. Modified waveform drawing
-    function drawWaveform() {
-        if (!analyser) return;
-        
-        // Improved waveform visibility
-        waveformCtx.strokeStyle = '#00FF00'; // Brighter green
-        waveformCtx.lineWidth = 2; // Thicker line
-        
-        // Rest of your existing waveform code...
-    }
+        // Initial setup
+        updateDateTime();
+        setInterval(updateDateTime, 1000);
+        drawGrid();
+        window.addEventListener('resize', drawGrid);
 
-    // 4. Add error handling for microphone access
-    async function startMic() {
-        try {
-            if (!audioContextInitialized) {
-                alert('Please click the initialization overlay first!');
+        // Speech recognition setup
+        recognition.continuous = true;
+        recognition.interimResults = true;
+        recognition.onresult = (event) => {
+            const transcript = Array.from(event.results)
+                .map(result => result[0].transcript)
+                .join('');
+            document.getElementById('voiceText').value = transcript;
+        };
+
+        function updateDateTime() {
+            const now = new Date();
+            const dateStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+            const timeStr = now.toLocaleTimeString();
+            document.getElementById('dateDisplay').textContent = `${dateStr} ${timeStr}`;
+            document.getElementById('countdownDisplay').textContent = `Countdown: ${countdown}`;
+        }
+
+        function drawGrid() {
+            grid.width = grid.clientWidth;
+            grid.height = grid.clientHeight;
+            gridCtx.strokeStyle = 'rgba(0, 255, 0, 0.5)';
+            gridCtx.lineWidth = 1;
+            
+            for (let i = 0; i <= grid.width; i += 20) {
+                gridCtx.beginPath();
+                gridCtx.moveTo(i, 0);
+                gridCtx.lineTo(i, grid.height);
+                gridCtx.stroke();
+            }
+            
+            for (let j = 0; j <= grid.height; j += 20) {
+                gridCtx.beginPath();
+                gridCtx.moveTo(0, j);
+                gridCtx.lineTo(grid.width, j);
+                gridCtx.stroke();
+            }
+        }
+
+        async function startVoice() {
+            try {
+                stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                source = audioContext.createMediaStreamSource(stream);
+                analyser = audioContext.createAnalyser();
+                source.connect(analyser);
+                
+                waveform.width = waveform.clientWidth;
+                waveform.height = waveform.clientHeight;
+                drawWaveform();
+                
+                countdown = 10;
+                clearInterval(countdownInterval);
+                countdownInterval = setInterval(() => {
+                    countdown--;
+                    if (countdown <= 0) {
+                        clearInterval(countdownInterval);
+                        stopVoice();
+                    }
+                }, 1000);
+
+                recognition.start();
+            } catch (err) {
+                alert('Microphone access required! Please allow permissions and try again.');
+            }
+        }
+
+        function stopVoice() {
+            if (stream) {
+                stream.getTracks().forEach(track => track.stop());
+            }
+            if (source) source.disconnect();
+            recognition.stop();
+        }
+
+        function drawWaveform() {
+            if (!analyser) return;
+            const bufferLength = analyser.frequencyBinCount;
+            const dataArray = new Uint8Array(bufferLength);
+            
+            waveformCtx.clearRect(0, 0, waveform.width, waveform.height);
+            waveformCtx.strokeStyle = '#00FF00';
+            waveformCtx.lineWidth = 2;
+            
+            analyser.getByteTimeDomainData(dataArray);
+            
+            waveformCtx.beginPath();
+            const sliceWidth = waveform.width / bufferLength;
+            let x = 0;
+            
+            for (let i = 0; i < bufferLength; i++) {
+                const v = dataArray[i] / 128.0;
+                const y = v * waveform.height / 2;
+                
+                if (i === 0) waveformCtx.moveTo(x, y);
+                else waveformCtx.lineTo(x, y);
+                x += sliceWidth;
+            }
+            
+            waveformCtx.stroke();
+            requestAnimationFrame(drawWaveform);
+        }
+
+        function generateImage() {
+            const text = document.getElementById('voiceText').value;
+            const style = document.getElementById('artStyle').value;
+            if (text.trim() === '') {
+                alert('Please record some text first!');
                 return;
             }
             
-            // Rest of your existing startMic code...
-        } catch (err) {
-            alert('Microphone access required! Please allow permissions and try again.');
+            // This is a placeholder - in a real implementation, this would call an image generation API
+            alert(`Generating image with text "${text}" in ${style} style`);
+            // Example implementation might look like:
+            // const image = await generateImageAPI(text, style);
+            // displayImage(image);
         }
-    }
-</script>
+
+        function saveEntry() {
+            const text = document.getElementById('voiceText').value;
+            if (text.trim() === '') return;
+            
+            const now = new Date();
+            const timestamp = `${now.toLocaleDateString()} ${now.toLocaleTimeString()}`;
+            const logDiv = document.createElement('div');
+            logDiv.className = 'log-entry';
+            logDiv.innerHTML = `
+                <span>${timestamp}: ${text}</span>
+                <button class="button" style="padding: 2px 5px;" onclick="this.parentElement.remove()">Delete</button>
+            `;
+            document.getElementById('moodLog').appendChild(logDiv);
+            document.getElementById('voiceText').value = '';
+        }
+    </script>
+</body>
+</html>
