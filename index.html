@@ -1,259 +1,231 @@
-<!DOCTYPE html>
-<html>
-<head>
-    <style>
-        canvas#grid, canvas#waveform {
-            background-color: rgba(0, 0, 0, 0.8);
-        }
+<script>
+// Audio Recording and Visualization
+let audioContext, mediaRecorder, audioChunks = [];
+let isRecording = false;
+let countdownInterval;
+const MAX_RECORD_TIME = 30 * 60; // 30 minutes in seconds
+let animationId;
 
-        #dateDisplay, #countdownDisplay {
-            font-size: 12px;
-            color: #00FF00 !important;
-        }
+// DOM Elements
+const startVoiceButton = document.getElementById('startVoice');
+const generateButton = document.getElementById('generate');
+const saveButton = document.getElementById('saveImage');
+const redoButton = document.getElementById('redo');
+const activityInput = document.getElementById('activityInput');
+const styleSelect = document.getElementById('styleSelect');
+const waveformCanvas = document.getElementById('waveform');
+const dateDisplay = document.getElementById('dateDisplay');
+const countdownDisplay = document.getElementById('countdownDisplay');
+const redDot = document.getElementById('redDot');
+const generatedImage = document.getElementById('generatedImage');
+const moodHistory = document.getElementById('moodHistory');
 
-        .button {
-            background-color: #000000;
-            border: 2px solid #00FF00 !important;
-            color: #00FF00;
-            padding: 5px 10px;
-            margin: 5px;
-            cursor: pointer;
-        }
+// Initialize Canvas
+const waveformCtx = waveformCanvas.getContext('2d');
+waveformCanvas.width = waveformCanvas.offsetWidth;
+waveformCanvas.height = waveformCanvas.offsetHeight;
 
-        #moodLog {
-            width: 300px;
-            height: 150px;
-            background-color: rgba(0, 0, 0, 0.8);
-            color: #00FF00;
-            border: 1px solid #00FF00;
-            overflow-y: auto;
-            padding: 10px;
-            margin-top: 10px;
-        }
+// Date/Time Display
+function updateDateTime() {
+    const now = new Date();
+    dateDisplay.textContent = now.toLocaleDateString('en-US', {
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit'
+    }).replace(/\//g, ' / ');
+}
+setInterval(updateDateTime, 1000);
+updateDateTime();
 
-        .log-entry {
-            margin: 5px 0;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
+// Countdown Timer
+function startCountdown() {
+    let secondsRemaining = MAX_RECORD_TIME;
+    countdownInterval = setInterval(() => {
+        if (secondsRemaining <= 0) {
+            stopRecording();
+            return;
         }
-
-        #artStyle {
-            background-color: #000000;
-            color: #00FF00;
-            border: 1px solid #00FF00;
-            margin: 5px;
-            padding: 5px;
-        }
-    </style>
-</head>
-<body>
-    <div style="display: flex; flex-direction: column; align-items: center; background: black; color: #00FF00; height: 100vh;">
-        <div id="datetimeDisplay" style="margin: 10px;">
-            <span id="dateDisplay"></span>
-            <span id="countdownDisplay" style="margin-left: 20px;">Countdown: 10</span>
-        </div>
         
-        <canvas id="grid" style="width: 300px; height: 300px;"></canvas>
-        <canvas id="waveform" style="width: 300px; height: 100px; margin-top: 10px;"></canvas>
+        const hours = Math.floor(secondsRemaining / 3600);
+        const minutes = Math.floor((secondsRemaining % 3600) / 60);
+        const seconds = secondsRemaining % 60;
         
-        <textarea id="voiceText" style="width: 300px; height: 100px; margin-top: 10px; background: black; color: #00FF00; border: 1px solid #00FF00;"></textarea>
+        countdownDisplay.textContent = 
+            `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
         
-        <div style="margin-top: 10px;">
-            <button class="button" onclick="startVoice()">Start Voice</button>
-            <select id="artStyle">
-                <option value="Hyper-realistic Photo">Hyper-realistic Photo</option>
-                <option value="Japanese Anime Style">Japanese Anime Style</option>
-                <option value="Abstract">Abstract</option>
-                <option value="Surrealism">Surrealism</option>
-                <option value="Post-modern">Post-modern</option>
-                <option value="Cyberpunk">Cyberpunk</option>
-                <option value="Arabic Calligraphy">Arabic Calligraphy</option>
-                <option value="Chinese Calligraphy">Chinese Calligraphy</option>
-                <option value="Japanese Calligraphy">Japanese Calligraphy</option>
-                <option value="Marvel Comic">Marvel Comic</option>
-                <option value="Art Deco">Art Deco</option>
-                <option value="Impressionist">Impressionist</option>
-                <option value="Pop Art">Pop Art</option>
-                <option value="Digital Painting">Digital Painting</option>
-                <option value="Minimalism">Minimalism</option>
-            </select>
-            <button class="button" onclick="generateImage()">Generate Image</button>
-            <button class="button" onclick="saveEntry()">Save</button>
-        </div>
+        secondsRemaining--;
+    }, 1000);
+}
+
+// Audio Visualization
+function visualizeAudio(stream) {
+    audioContext = new (window.AudioContext || window.webkitAudioContext)();
+    const source = audioContext.createMediaStreamSource(stream);
+    const analyser = audioContext.createAnalyser();
+    
+    source.connect(analyser);
+    analyser.fftSize = 2048;
+    const bufferLength = analyser.frequencyBinCount;
+    const dataArray = new Uint8Array(bufferLength);
+
+    function draw() {
+        analyser.getByteTimeDomainData(dataArray);
+        waveformCtx.fillStyle = 'rgba(0, 0, 0, 0.1)';
+        waveformCtx.fillRect(0, 0, waveformCanvas.width, waveformCanvas.height);
         
-        <div id="moodLog">
-            <h3 style="margin: 0 0 10px 0;">Mood Log</h3>
-        </div>
-    </div>
+        waveformCtx.lineWidth = 2;
+        waveformCtx.strokeStyle = '#FFFF00';
+        waveformCtx.beginPath();
 
-    <script>
-        // Wait for DOM to be fully loaded
-        document.addEventListener('DOMContentLoaded', () => {
-            let audioContext;
-            let analyser, source, stream;
-            const grid = document.getElementById('grid');
-            const waveform = document.getElementById('waveform');
-            let gridCtx, waveformCtx;
-            let countdown = 10;
-            let countdownInterval;
-            let recognition;
+        const sliceWidth = waveformCanvas.width * 1.0 / bufferLength;
+        let x = 0;
 
-            // Initialize canvas contexts safely
-            if (grid && waveform) {
-                gridCtx = grid.getContext('2d');
-                waveformCtx = waveform.getContext('2d');
-            } else {
-                console.error('Canvas elements not found');
-                return;
-            }
+        for (let i = 0; i < bufferLength; i++) {
+            const v = dataArray[i] / 128.0;
+            const y = v * waveformCanvas.height / 2;
+            
+            if (i === 0) waveformCtx.moveTo(x, y);
+            else waveformCtx.lineTo(x, y);
+            
+            x += sliceWidth;
+        }
 
-            // Initialize audio context and speech recognition
-            try {
-                audioContext = new (window.AudioContext || window.webkitAudioContext)();
-                recognition = new (window.SpeechRecognition || window.webkitSpeechRecognition)();
-            } catch (err) {
-                console.error('Failed to initialize audio context or speech recognition:', err);
-                alert('Failed to initialize audio system: ' + err.message);
-                return;
-            }
+        waveformCtx.stroke();
+        animationId = requestAnimationFrame(draw);
+    }
+    draw();
+}
 
-            // Initial setup
-            updateDateTime();
-            setInterval(updateDateTime, 1000);
-            drawGrid();
-            window.addEventListener('resize', drawGrid);
+// Voice Recording
+async function startRecording() {
+    try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        mediaRecorder = new MediaRecorder(stream);
+        audioChunks = [];
+        
+        mediaRecorder.ondataavailable = event => {
+            audioChunks.push(event.data);
+        };
+        
+        mediaRecorder.onstop = () => {
+            const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+            // Process audio here if needed
+        };
 
-            // Speech recognition setup
-            recognition.continuous = true;
-            recognition.interimResults = true;
-            recognition.onresult = (event) => {
-                const transcript = Array.from(event.results)
-                    .map(result => result[0].transcript)
-                    .join('');
-                document.getElementById('voiceText').value = transcript;
-            };
+        mediaRecorder.start();
+        isRecording = true;
+        startVoiceButton.textContent = 'Stop Voice';
+        startVoiceButton.classList.add('recording');
+        redDot.style.display = 'block';
+        startCountdown();
+        visualizeAudio(stream);
+    } catch (err) {
+        alert('Microphone access required!');
+    }
+}
 
-            function updateDateTime() {
-                const now = new Date();
-                const dateStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
-                const timeStr = now.toLocaleTimeString();
-                document.getElementById('dateDisplay').textContent = `${dateStr} ${timeStr}`;
-                document.getElementById('countdownDisplay').textContent = `Countdown: ${countdown}`;
-            }
+function stopRecording() {
+    if (mediaRecorder && isRecording) {
+        mediaRecorder.stop();
+        isRecording = false;
+        startVoiceButton.textContent = 'Start Voice';
+        startVoiceButton.classList.remove('recording');
+        redDot.style.display = 'none';
+        clearInterval(countdownInterval);
+        cancelAnimationFrame(animationId);
+    }
+}
 
-            function drawGrid() {
-                if (!gridCtx) return;
-                grid.width = grid.clientWidth;
-                grid.height = grid.clientHeight;
-                gridCtx.strokeStyle = 'rgba(0, 255, 0, 0.5)';
-                gridCtx.lineWidth = 1;
-                
-                for (let i = 0; i <= grid.width; i += 20) {
-                    gridCtx.beginPath();
-                    gridCtx.moveTo(i, 0);
-                    gridCtx.lineTo(i, grid.height);
-                    gridCtx.stroke();
-                }
-                
-                for (let j = 0; j <= grid.height; j += 20) {
-                    gridCtx.beginPath();
-                    gridCtx.moveTo(0, j);
-                    gridCtx.lineTo(grid.width, j);
-                    gridCtx.stroke();
-                }
-            }
+// Style Select Options
+const artStyles = [
+    'Hyper-realistic Photo',
+    'Japanese Anime Style',
+    'Abstract',
+    'Surrealism',
+    'Post-modern',
+    'Cyberpunk',
+    'Arabic Calligraphy',
+    'Chinese Calligraphy',
+    'Japanese Calligraphy',
+    'Marvel Comic',
+    'Art Deco',
+    'Impressionist',
+    'Pop Art',
+    'Digital Painting',
+    'Minimalism'
+];
 
-            async function startVoice() {
-                try {
-                    stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-                    source = audioContext.createMediaStreamSource(stream);
-                    analyser = audioContext.createAnalyser();
-                    source.connect(analyser);
-                    
-                    waveform.width = waveform.clientWidth;
-                    waveform.height = waveform.clientHeight;
-                    drawWaveform();
-                    
-                    countdown = 10;
-                    clearInterval(countdownInterval);
-                    countdownInterval = setInterval(() => {
-                        countdown--;
-                        if (countdown <= 0) {
-                            clearInterval(countdownInterval);
-                            stopVoice();
-                        }
-                    }, 1000);
+artStyles.forEach(style => {
+    const option = document.createElement('option');
+    option.value = style.toLowerCase().replace(/ /g, '-');
+    option.textContent = style;
+    styleSelect.appendChild(option);
+});
 
-                    recognition.start();
-                } catch (err) {
-                    alert('Microphone access required! Please allow permissions and try again.');
-                }
-            }
+// Image Generation
+generateButton.addEventListener('click', async () => {
+    if (!activityInput.value.trim() || styleSelect.value === 'none') {
+        alert('Please describe your mood and select a style!');
+        return;
+    }
 
-            function stopVoice() {
-                if (stream) {
-                    stream.getTracks().forEach(track => track.stop());
-                }
-                if (source) source.disconnect();
-                recognition.stop();
-            }
+    const loadingIndicator = document.getElementById('loadingIndicator');
+    loadingIndicator.style.display = 'flex';
+    
+    try {
+        // Simulated API call with style-based image
+        await new Promise(resolve => setTimeout(resolve, 1500));
+        generatedImage.src = `https://source.unsplash.com/random/800x600/?${styleSelect.value},art`;
+        generatedImage.style.display = 'block';
+    } catch (error) {
+        alert('Image generation failed: ' + error.message);
+    } finally {
+        loadingIndicator.style.display = 'none';
+    }
+});
 
-            function drawWaveform() {
-                if (!analyser || !waveformCtx) return;
-                const bufferLength = analyser.frequencyBinCount;
-                const dataArray = new Uint8Array(bufferLength);
-                
-                waveformCtx.clearRect(0, 0, waveform.width, waveform.height);
-                waveformCtx.strokeStyle = '#00FF00';
-                waveformCtx.lineWidth = 2;
-                
-                analyser.getByteTimeDomainData(dataArray);
-                
-                waveformCtx.beginPath();
-                const sliceWidth = waveform.width / bufferLength;
-                let x = 0;
-                
-                for (let i = 0; i < bufferLength; i++) {
-                    const v = dataArray[i] / 128.0;
-                    const y = v * waveform.height / 2;
-                    
-                    if (i === 0) waveformCtx.moveTo(x, y);
-                    else waveformCtx.lineTo(x, y);
-                    x += sliceWidth;
-                }
-                
-                waveformCtx.stroke();
-                requestAnimationFrame(drawWaveform);
-            }
+// Save Functionality
+saveButton.addEventListener('click', () => {
+    if (!generatedImage.src || !activityInput.value.trim()) {
+        alert('No image to save!');
+        return;
+    }
+    
+    // Save image
+    const link = document.createElement('a');
+    link.download = 'mood-art.png';
+    link.href = generatedImage.src;
+    link.click();
+    
+    // Add to mood history
+    const entry = document.createElement('div');
+    entry.className = 'mood-entry';
+    entry.innerHTML = `
+        <span>${new Date().toLocaleDateString('en-US', {
+            year: 'numeric',
+            month: '2-digit',
+            day: '2-digit'
+        })} - ${activityInput.value}</span>
+        <button class="delete-btn" onclick="this.parentElement.remove()">✕</button>
+    `;
+    moodHistory.prepend(entry);
+    
+    activityInput.value = '';
+    styleSelect.value = 'none';
+});
 
-            function generateImage() {
-                const text = document.getElementById('voiceText').value;
-                const style = document.getElementById('artStyle').value;
-                if (text.trim() === '') {
-                    alert('Please record some text first!');
-                    return;
-                }
-                
-                alert(`Generating image with text "${text}" in ${style} style`);
-            }
+// Event Listeners
+startVoiceButton.addEventListener('click', () => {
+    if (!isRecording) {
+        startRecording();
+    } else {
+        stopRecording();
+    }
+});
 
-            function saveEntry() {
-                const text = document.getElementById('voiceText').value;
-                if (text.trim() === '') return;
-                
-                const now = new Date();
-                const timestamp = `${now.toLocaleDateString()} ${now.toLocaleTimeString()}`;
-                const logDiv = document.createElement('div');
-                logDiv.className = 'log-entry';
-                logDiv.innerHTML = `
-                    <span>${timestamp}: ${text}</span>
-                    <button class="button" style="padding: 2px 5px;" onclick="this.parentElement.remove()">Delete</button>
-                `;
-                document.getElementById('moodLog').appendChild(logDiv);
-                document.getElementById('voiceText').value = '';
-            }
-        });
-    </script>
-</body>
-</html>
+redoButton.addEventListener('click', () => {
+    activityInput.value = '';
+    styleSelect.value = 'none';
+    generatedImage.style.display = 'none';
+});
+</script>
