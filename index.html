@@ -172,11 +172,6 @@
   </style>
 </head>
 <body>
-  <!-- Loading Overlay -->
-  <div id="initOverlay" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: black; z-index: 9999; display: flex; justify-content: center; align-items: center; color: #00FFFF;">
-    Initializing audio system...<br>Click anywhere to start
-  </div>
-
   <div class="container">
     <canvas id="waveform"></canvas>
     
@@ -231,13 +226,13 @@
   </div>
 
   <script>
-    // API endpoint URL - adjust based on your deployment
+    // API endpoint URL - update to your Render.com backend URL
     const API_URL = window.location.hostname === 'localhost' 
       ? 'http://localhost:5000' 
-      : 'https://your-render-app-url.onrender.com';
+      : 'https://openai-image-backend.onrender.com:10000';
 
     // Audio and Recording System
-    let audioContext, mediaRecorder, audioChunks = [];
+    let audioContext, mediaRecorder, audioChunks = [], stream;
     let isRecording = false, countdownInterval;
     const MAX_RECORD_TIME = 30 * 60;
     let animationId;
@@ -251,288 +246,284 @@
     const waveformCtx = waveform.getContext('2d');
     const transcribingIndicator = document.getElementById('transcribingIndicator');
 
-    // Initialization
-    document.getElementById('initOverlay').addEventListener('click', async () => {
-      try {
-        audioContext = new (window.AudioContext || window.webkitAudioContext)();
-        await audioContext.resume();
-        document.getElementById('initOverlay').style.display = 'none';
-        initWaveform();
-        updateDateTime();
-      } catch (err) {
-        alert('Initialization failed: ' + err.message);
-      }
-    });
-
     // Waveform Visualization
     function initWaveform() {
-      waveform.width = waveform.offsetWidth;
-      waveform.height = waveform.offsetHeight;
-      drawWaveformGrid();
+        waveform.width = waveform.offsetWidth;
+        waveform.height = waveform.offsetHeight;
+        drawWaveformGrid();
     }
 
     function drawWaveformGrid() {
-      waveformCtx.strokeStyle = 'rgba(0, 255, 255, 0.2)';
-      waveformCtx.lineWidth = 0.5;
-      
-      // Vertical lines
-      for(let x = 0; x < waveform.width; x += 20) {
-        waveformCtx.beginPath();
-        waveformCtx.moveTo(x, 0);
-        waveformCtx.lineTo(x, waveform.height);
-        waveformCtx.stroke();
-      }
-      
-      // Horizontal lines
-      for(let y = 0; y < waveform.height; y += 20) {
-        waveformCtx.beginPath();
-        waveformCtx.moveTo(0, y);
-        waveformCtx.lineTo(waveform.width, y);
-        waveformCtx.stroke();
-      }
+        waveformCtx.strokeStyle = 'rgba(0, 255, 255, 0.2)';
+        waveformCtx.lineWidth = 0.5;
+        
+        for(let x = 0; x < waveform.width; x += 20) {
+            waveformCtx.beginPath();
+            waveformCtx.moveTo(x, 0);
+            waveformCtx.lineTo(x, waveform.height);
+            waveformCtx.stroke();
+        }
+        
+        for(let y = 0; y < waveform.height; y += 20) {
+            waveformCtx.beginPath();
+            waveformCtx.moveTo(0, y);
+            waveformCtx.lineTo(waveform.width, y);
+            waveformCtx.stroke();
+        }
     }
 
     // Date/Time Display
     function updateDateTime() {
-      const now = new Date();
-      document.getElementById('dateTimeDisplay').innerHTML = `
-        ${now.toLocaleDateString('en-US', {
-          year: 'numeric',
-          month: 'short',
-          day: 'numeric'
-        })}<br>
-        ${now.toLocaleTimeString('en-US', {
-          hour: '2-digit',
-          minute: '2-digit',
-          second: '2-digit'
-        })}
-      `;
+        const now = new Date();
+        document.getElementById('dateTimeDisplay').innerHTML = `
+            ${now.toLocaleDateString('en-US', {
+                year: 'numeric',
+                month: 'short',
+                day: 'numeric'
+            })}<br>
+            ${now.toLocaleTimeString('en-US', {
+                hour: '2-digit',
+                minute: '2-digit',
+                second: '2-digit'
+            })}
+        `;
     }
     setInterval(updateDateTime, 1000);
 
     // Voice Recording System with Transcription
     startVoiceButton.addEventListener('click', async () => {
-      if (!isRecording) {
-        try {
-          const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-          audioChunks = []; // Reset audio chunks
-          
-          mediaRecorder = new MediaRecorder(stream, {
-            mimeType: 'audio/webm;codecs=opus'
-          });
-          
-          mediaRecorder.ondataavailable = e => audioChunks.push(e.data);
-          mediaRecorder.onstop = async () => {
-            const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
-            
-            // Show transcribing indicator
-            transcribingIndicator.style.display = 'block';
-            
+        if (!isRecording) {
             try {
-              // Create form data to send audio file
-              const formData = new FormData();
-              formData.append('audio', audioBlob, 'recording.webm');
-              
-              // Send to transcription API
-              const response = await fetch(`${API_URL}/transcribe`, {
-                method: 'POST',
-                body: formData
-              });
-              
-              if (!response.ok) {
-                throw new Error('Transcription failed');
-              }
-              
-              const data = await response.json();
-              
-              // Update text area with transcription
-              activityInput.value = data.transcription;
-              document.getElementById('chimeSound').play();
-            } catch (error) {
-              console.error('Error transcribing:', error);
-              alert('Failed to transcribe audio: ' + error.message);
-            } finally {
-              transcribingIndicator.style.display = 'none';
+                stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                audioChunks = [];
+                
+                audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                await audioContext.resume();
+                
+                mediaRecorder = new MediaRecorder(stream, {
+                    mimeType: 'audio/webm;codecs=opus'
+                });
+                
+                mediaRecorder.ondataavailable = e => audioChunks.push(e.data);
+                mediaRecorder.onstop = async () => {
+                    const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+                    
+                    transcribingIndicator.style.display = 'block';
+                    
+                    try {
+                        const formData = new FormData();
+                        formData.append('audio', audioBlob, 'recording.webm');
+                        
+                        const response = await fetch(`${API_URL}/transcribe`, {
+                            method: 'POST',
+                            body: formData
+                        });
+                        
+                        if (!response.ok) {
+                            throw new Error('Transcription failed: ' + response.statusText);
+                        }
+                        
+                        const data = await response.json();
+                        
+                        activityInput.value = data.transcription || 'No transcription available';
+                        activityInput.dispatchEvent(new Event('input'));
+                        document.getElementById('chimeSound').play();
+                    } catch (error) {
+                        console.error('Error transcribing:', error);
+                        alert('Failed to transcribe audio: ' + error.message);
+                    } finally {
+                        transcribingIndicator.style.display = 'none';
+                    }
+                };
+
+                mediaRecorder.start();
+                isRecording = true;
+                startVoiceButton.textContent = 'Stop Voice';
+                startVoiceButton.classList.add('recording');
+                document.getElementById('redDot').style.display = 'block';
+                startCountdown();
+                visualizeAudio(stream);
+            } catch (err) {
+                alert('Microphone access required!');
             }
-          };
-
-          mediaRecorder.start();
-          isRecording = true;
-          startVoiceButton.textContent = 'Stop Voice';
-          startVoiceButton.classList.add('recording');
-          document.getElementById('redDot').style.display = 'block';
-          startCountdown();
-          visualizeAudio(stream);
-        } catch (err) {
-          alert('Microphone access required!');
-        }
-      } else {
-        mediaRecorder.stop();
-        isRecording = false;
-        startVoiceButton.textContent = 'Start Voice';
-        startVoiceButton.classList.remove('recording');
-        document.getElementById('redDot').style.display = 'none';
-        clearInterval(countdownInterval);
-        cancelAnimationFrame(animationId);
-        drawWaveformGrid(); // Reset waveform display
-      }
-    });
-
-    // Audio Visualization
-    function visualizeAudio(stream) {
-      const audioContext = new (window.AudioContext || window.webkitAudioContext)();
-      const source = audioContext.createMediaStreamSource(stream);
-      const analyser = audioContext.createAnalyser();
-      
-      source.connect(analyser);
-      analyser.fftSize = 2048;
-      const bufferLength = analyser.frequencyBinCount;
-      const dataArray = new Uint8Array(bufferLength);
-
-      function draw() {
-        analyser.getByteTimeDomainData(dataArray);
-        waveformCtx.fillStyle = 'rgba(0, 0, 0, 0.1)';
-        waveformCtx.fillRect(0, 0, waveform.width, waveform.height);
-        
-        waveformCtx.lineWidth = 2;
-        waveformCtx.strokeStyle = '#00FFFF';
-        waveformCtx.beginPath();
-
-        const sliceWidth = waveform.width * 1.0 / bufferLength;
-        let x = 0;
-
-        for (let i = 0; i < bufferLength; i++) {
-          const v = dataArray[i] / 128.0;
-          const y = v * waveform.height / 2;
-          
-          if (i === 0) waveformCtx.moveTo(x, y);
-          else waveformCtx.lineTo(x, y);
-          
-          x += sliceWidth;
-        }
-
-        waveformCtx.stroke();
-        animationId = requestAnimationFrame(draw);
-      }
-      draw();
-    }
-
-    // Countdown Timer
-    function startCountdown() {
-      let seconds = MAX_RECORD_TIME;
-      countdownInterval = setInterval(() => {
-        const mins = Math.floor(seconds / 60);
-        const secs = seconds % 60;
-        document.getElementById('countdownDisplay').textContent = 
-          `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
-        
-        if (seconds-- <= 0) {
-          if (isRecording) {
+        } else {
             mediaRecorder.stop();
             isRecording = false;
             startVoiceButton.textContent = 'Start Voice';
             startVoiceButton.classList.remove('recording');
             document.getElementById('redDot').style.display = 'none';
-          }
-          clearInterval(countdownInterval);
+            clearInterval(countdownInterval);
+            cancelAnimationFrame(animationId);
+            drawWaveformGrid();
+            
+            if (stream) {
+                stream.getTracks().forEach(track => track.stop());
+            }
         }
-      }, 1000);
+    });
+
+    // Audio Visualization
+    function visualizeAudio(stream) {
+        const source = audioContext.createMediaStreamSource(stream);
+        const analyser = audioContext.createAnalyser();
+        
+        source.connect(analyser);
+        analyser.fftSize = 2048;
+        const bufferLength = analyser.frequencyBinCount;
+        const dataArray = new Uint8Array(bufferLength);
+
+        function draw() {
+            analyser.getByteTimeDomainData(dataArray);
+            waveformCtx.fillStyle = 'rgba(0, 0, 0, 0.1)';
+            waveformCtx.fillRect(0, 0, waveform.width, waveform.height);
+            
+            waveformCtx.lineWidth = 2;
+            waveformCtx.strokeStyle = '#00FFFF';
+            waveformCtx.beginPath();
+
+            const sliceWidth = waveform.width * 1.0 / bufferLength;
+            let x = 0;
+
+            for (let i = 0; i < bufferLength; i++) {
+                const v = dataArray[i] / 128.0;
+                const y = v * waveform.height / 2;
+                
+                if (i === 0) waveformCtx.moveTo(x, y);
+                else waveformCtx.lineTo(x, y);
+                
+                x += sliceWidth;
+            }
+
+            waveformCtx.stroke();
+            animationId = requestAnimationFrame(draw);
+        }
+        draw();
+    }
+
+    // Countdown Timer
+    function startCountdown() {
+        let seconds = MAX_RECORD_TIME;
+        countdownInterval = setInterval(() => {
+            const mins = Math.floor(seconds / 60);
+            const secs = seconds % 60;
+            document.getElementById('countdownDisplay').textContent = 
+                `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+            
+            if (seconds-- <= 0) {
+                if (isRecording) {
+                    mediaRecorder.stop();
+                    isRecording = false;
+                    startVoiceButton.textContent = 'Start Voice';
+                    startVoiceButton.classList.remove('recording');
+                    document.getElementById('redDot').style.display = 'none';
+                }
+                clearInterval(countdownInterval);
+                cancelAnimationFrame(animationId);
+                drawWaveformGrid();
+                
+                if (stream) {
+                    stream.getTracks().forEach(track => track.stop());
+                }
+            }
+        }, 1000);
     }
 
     // Image Generation
     generateButton.addEventListener('click', async () => {
-      if (!activityInput.value.trim() || styleSelect.value === 'none') {
-        alert('Please describe your mood and select a style!');
-        return;
-      }
-
-      const loading = document.getElementById('loadingIndicator');
-      loading.style.display = 'flex';
-
-      try {
-        const style = styleSelect.options[styleSelect.selectedIndex].text;
-        const prompt = `${activityInput.value} (${style})`;
-        
-        const response = await fetch(`${API_URL}/generate`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({ prompt })
-        });
-
-        if (!response.ok) {
-          throw new Error('Image generation failed');
+        if (!activityInput.value.trim() || styleSelect.value === 'none') {
+            alert('Please describe your mood and select a style!');
+            return;
         }
 
-        const data = await response.json();
-        
-        // Add to mood history
-        addHistoryEntry(prompt);
-        
-        // Display the generated image
-        const generatedImage = document.getElementById('generatedImage');
-        generatedImage.src = data.image;
-        generatedImage.style.display = 'block';
-        document.getElementById('beepSound').play();
-      } catch (error) {
-        alert('Generation error: ' + error.message);
-      } finally {
-        loading.style.display = 'none';
-      }
+        const loading = document.getElementById('loadingIndicator');
+        loading.style.display = 'flex';
+
+        try {
+            const style = styleSelect.options[styleSelect.selectedIndex].text;
+            const prompt = `${activityInput.value} (${style})`;
+            
+            const response = await fetch(`${API_URL}/generate`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ prompt })
+            });
+
+            if (!response.ok) {
+                throw new Error('Image generation failed: ' + response.statusText);
+            }
+
+            const data = await response.json();
+            
+            addHistoryEntry(prompt);
+            
+            const generatedImage = document.getElementById('generatedImage');
+            generatedImage.src = data.image;
+            generatedImage.style.display = 'block';
+            document.getElementById('beepSound').play();
+        } catch (error) {
+            alert('Generation error: ' + error.message);
+        } finally {
+            loading.style.display = 'none';
+        }
     });
 
     // Mood History Management
     function addHistoryEntry(text) {
-      const entry = document.createElement('div');
-      entry.className = 'history-entry';
-      entry.innerHTML = `
-        <div class="timestamp">${new Date().toLocaleString()}</div>
-        <div class="entry-content" contenteditable="true">${text}</div>
-        <div class="entry-actions">
-          <button class="entry-btn delete-btn">✕</button>
-        </div>
-      `;
-      
-      entry.querySelector('.delete-btn').addEventListener('click', () => entry.remove());
-      document.getElementById('moodHistory').prepend(entry);
+        const entry = document.createElement('div');
+        entry.className = 'history-entry';
+        entry.innerHTML = `
+            <div class="timestamp">${new Date().toLocaleString()}</div>
+            <div class="entry-content" contenteditable="true">${text}</div>
+            <div class="entry-actions">
+                <button class="entry-btn delete-btn">✕</button>
+            </div>
+        `;
+        
+        entry.querySelector('.delete-btn').addEventListener('click', () => entry.remove());
+        document.getElementById('moodHistory').prepend(entry);
     }
 
     // Save Functionality
     document.getElementById('saveImage').addEventListener('click', () => {
-      const image = document.getElementById('generatedImage');
-      if (image.src && image.style.display !== 'none') {
-        const link = document.createElement('a');
-        link.download = `mood-art-${new Date().toISOString().slice(0,10)}.png`;
-        link.href = image.src;
-        link.click();
-        document.getElementById('saveSound').play();
-      } else {
-        alert('No image to save. Generate an image first!');
-      }
+        const image = document.getElementById('generatedImage');
+        if (image.src && image.style.display !== 'none') {
+            const link = document.createElement('a');
+            link.download = `mood-art-${new Date().toISOString().slice(0,10)}.png`;
+            link.href = image.src;
+            link.click();
+            document.getElementById('saveSound').play();
+        } else {
+            alert('No image to save. Generate an image first!');
+        }
     });
 
     // Redo Functionality
     document.getElementById('redo').addEventListener('click', () => {
-      activityInput.value = '';
-      styleSelect.value = 'none';
-      document.getElementById('generatedImage').style.display = 'none';
+        activityInput.value = '';
+        styleSelect.value = 'none';
+        document.getElementById('generatedImage').style.display = 'none';
     });
 
     // Health check on load to verify API connection
     async function checkApiHealth() {
-      try {
-        const response = await fetch(`${API_URL}/health`);
-        if (!response.ok) {
-          console.warn('API health check failed. Some features may not work correctly.');
+        try {
+            const response = await fetch(`${API_URL}/health`);
+            if (!response.ok) {
+                console.warn('API health check failed. Some features may not work correctly.');
+            }
+        } catch (error) {
+            console.error('API connection error:', error);
         }
-      } catch (error) {
-        console.error('API connection error:', error);
-      }
     }
     
-    // Run health check when page loads
-    window.addEventListener('load', checkApiHealth);
+    // Run health check and initialize waveform when page loads
+    window.addEventListener('load', () => {
+        checkApiHealth();
+        initWaveform();
+        updateDateTime();
+    });
   </script>
 </body>
 </html>
