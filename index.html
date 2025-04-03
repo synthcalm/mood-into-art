@@ -3,11 +3,11 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>MIA - Fully Safari Safe</title>
+  <title>MIA - Final AudioWorklet Fix</title>
 </head>
 <body>
   <div>
-    <h2>Final Voice Capture (Safari Safe)</h2>
+    <h2>Final Voice Capture (Fully Safari Safe)</h2>
     <button id="startVoice">Start Voice</button>
     <div id="transcribingIndicator" style="display:none;">Listening...</div>
     <textarea id="activityInput" rows="4" placeholder="Describe your mood..."></textarea>
@@ -25,7 +25,6 @@
       try {
         console.log("🎧 Creating and unlocking AudioContext...");
         audioContext = new (window.AudioContext || window.webkitAudioContext)();
-
         if (audioContext.state === 'suspended') {
           await audioContext.resume();
         }
@@ -115,7 +114,14 @@
             }
           };
 
-          source.connect(workletNode).connect(audioContext.destination);
+          try {
+            console.log("🔗 Connecting source → worklet → destination...");
+            source.connect(workletNode);
+            workletNode.connect(audioContext.destination);
+            console.log("✅ Audio pipeline connected");
+          } catch (err) {
+            console.error("❌ Audio node connection failed:", err.message);
+          }
         };
 
         socket.onclose = () => {
