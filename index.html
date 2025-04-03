@@ -3,11 +3,11 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>MIA - Clean AudioWorklet</title>
+  <title>MIA - Base64 Audio Fix</title>
 </head>
 <body>
   <div>
-    <h2>Final Voice Capture (Clean Version)</h2>
+    <h2>Final Voice Capture (Base64 Fix)</h2>
     <button id="startVoice">Start Voice</button>
     <div id="transcribingIndicator" style="display:none;">Listening...</div>
     <textarea id="activityInput" rows="4" placeholder="Describe your mood..."></textarea>
@@ -23,15 +23,12 @@
 
     async function unlockAudioContextAndMic() {
       try {
-        console.log("🎧 Creating and unlocking AudioContext...");
         audioContext = new (window.AudioContext || window.webkitAudioContext)();
         if (audioContext.state === 'suspended') {
           await audioContext.resume();
         }
 
-        console.log("🎙 Requesting microphone access...");
         mediaStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-
         return true;
       } catch (e) {
         alert("Microphone access failed: " + e.message);
@@ -41,11 +38,9 @@
 
     async function startRecording() {
       try {
-        console.log("🔄 Requesting AssemblyAI token...");
         const { token } = await fetch("https://mood-into-art-backend.onrender.com/assemblyai-token")
           .then(res => res.json());
 
-        console.log("✅ Token received, connecting WebSocket...");
         socket = new WebSocket(`wss://api.assemblyai.com/v2/realtime/ws?sample_rate=16000&token=${token}`);
 
         socket.onmessage = (msg) => {
@@ -107,7 +102,8 @@
 
           workletNode.port.onmessage = (e) => {
             if (socket.readyState === WebSocket.OPEN) {
-              socket.send(e.data);
+              const base64Audio = btoa(String.fromCharCode(...new Uint8Array(e.data)));
+              socket.send(base64Audio);
             }
           };
 
