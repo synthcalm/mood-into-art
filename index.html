@@ -3,11 +3,11 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>MIA - Safari Safe AudioWorklet</title>
+  <title>MIA - Fully Safari Safe</title>
 </head>
 <body>
   <div>
-    <h2>Voice Capture - AudioWorklet (Safari Fix)</h2>
+    <h2>Final Voice Capture (Safari Safe)</h2>
     <button id="startVoice">Start Voice</button>
     <div id="transcribingIndicator" style="display:none;">Listening...</div>
     <textarea id="activityInput" rows="4" placeholder="Describe your mood..."></textarea>
@@ -20,6 +20,25 @@
 
     let socket, audioContext, mediaStream, workletNode;
     let isRecording = false;
+
+    async function unlockAudioContextAndMic() {
+      try {
+        console.log("🎧 Creating and unlocking AudioContext...");
+        audioContext = new (window.AudioContext || window.webkitAudioContext)();
+
+        if (audioContext.state === 'suspended') {
+          await audioContext.resume();
+        }
+
+        console.log("🎙 Requesting microphone access...");
+        mediaStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+
+        return true;
+      } catch (e) {
+        alert("Microphone access failed: " + e.message);
+        return false;
+      }
+    }
 
     async function startRecording() {
       try {
@@ -42,11 +61,7 @@
           console.log("✅ WebSocket connected");
           transcribingIndicator.style.display = 'block';
 
-          console.log("🎙 Requesting microphone access...");
-          mediaStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-
-          console.log("🎧 Initializing AudioContext with AudioWorklet...");
-          audioContext = new (window.AudioContext || window.webkitAudioContext)();
+          console.log("🎧 Adding AudioWorklet...");
           await audioContext.audioWorklet.addModule(URL.createObjectURL(new Blob([`
             class AudioProcessor extends AudioWorkletProcessor {
               constructor() {
@@ -90,11 +105,6 @@
             }
             registerProcessor('audio-processor', AudioProcessor);
           `], { type: "application/javascript" })));
-
-          if (audioContext.state === 'suspended') {
-            console.log("🔔 Resuming audio context...");
-            await audioContext.resume();
-          }
 
           const source = audioContext.createMediaStreamSource(mediaStream);
           workletNode = new AudioWorkletNode(audioContext, 'audio-processor');
@@ -140,7 +150,15 @@
         console.log("▶️ Starting voice capture...");
         isRecording = true;
         startVoiceButton.textContent = "Stop Voice";
-        await startRecording();
+
+        const unlocked = await unlockAudioContextAndMic();
+        if (unlocked) {
+          await startRecording();
+        } else {
+          isRecording = false;
+          startVoiceButton.textContent = "Start Voice";
+        }
+
       } else {
         console.log("⏹ Stopping voice capture...");
         isRecording = false;
