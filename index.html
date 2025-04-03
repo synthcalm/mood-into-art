@@ -1,80 +1,231 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>MIA (Mood Into Art)</title>
-  <style>
-    /* Cyan theme adjustments */
-    body {
-      background-color: #000;
-      color: #00FFFF;
-    }
-    .container {
-      border: 2px solid #00FFFF;
-      background-color: rgba(0, 32, 32, 0.95);
-    }
-    canvas#waveform {
-      border: 1px solid #00FFFF;
-      background-image:
-        linear-gradient(to right, rgba(0, 255, 255, 0.1) 1px, transparent 1px),
-        linear-gradient(to bottom, rgba(0, 255, 255, 0.1) 1px, transparent 1px);
-    }
-    /* Yellow waveform visualization */
-    .waveform-path {
-      stroke: #FFFF00 !important;
-      stroke-width: 2px !important;
-    }
-    /* Enhanced visibility */
-    .button {
-      border: 2px solid #00FFFF;
-      transition: all 0.2s ease-in-out;
-    }
-    .button:hover {
-      background-color: #00FFFF;
-      color: #002;
-    }
-  </style>
-</head>
-<body>
-  <!-- Add this initialization check -->
-  <div id="initCheck" style="display: none;"></div>
-
 <script>
-    // ================== CRITICAL FIXES ==================
-    // 1. Add DOMContentLoaded listener
-    document.addEventListener('DOMContentLoaded', () => {
-        // Force UI rendering
-        document.getElementById('initCheck').offsetHeight;
-        document.getElementById('container').style.visibility = 'visible';
-    });
+// Audio Recording and Visualization
+let audioContext, mediaRecorder, audioChunks = [];
+let isRecording = false;
+let countdownInterval;
+const MAX_RECORD_TIME = 30 * 60; // 30 minutes in seconds
+let animationId;
 
-    // 2. Modified waveform drawing with yellow color
+// DOM Elements
+const startVoiceButton = document.getElementById('startVoice');
+const generateButton = document.getElementById('generate');
+const saveButton = document.getElementById('saveImage');
+const redoButton = document.getElementById('redo');
+const activityInput = document.getElementById('activityInput');
+const styleSelect = document.getElementById('styleSelect');
+const waveformCanvas = document.getElementById('waveform');
+const dateDisplay = document.getElementById('dateDisplay');
+const countdownDisplay = document.getElementById('countdownDisplay');
+const redDot = document.getElementById('redDot');
+const generatedImage = document.getElementById('generatedImage');
+const moodHistory = document.getElementById('moodHistory');
+
+// Initialize Canvas
+const waveformCtx = waveformCanvas.getContext('2d');
+waveformCanvas.width = waveformCanvas.offsetWidth;
+waveformCanvas.height = waveformCanvas.offsetHeight;
+
+// Date/Time Display
+function updateDateTime() {
+    const now = new Date();
+    dateDisplay.textContent = now.toLocaleDateString('en-US', {
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit'
+    }).replace(/\//g, ' / ');
+}
+setInterval(updateDateTime, 1000);
+updateDateTime();
+
+// Countdown Timer
+function startCountdown() {
+    let secondsRemaining = MAX_RECORD_TIME;
+    countdownInterval = setInterval(() => {
+        if (secondsRemaining <= 0) {
+            stopRecording();
+            return;
+        }
+        
+        const hours = Math.floor(secondsRemaining / 3600);
+        const minutes = Math.floor((secondsRemaining % 3600) / 60);
+        const seconds = secondsRemaining % 60;
+        
+        countdownDisplay.textContent = 
+            `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+        
+        secondsRemaining--;
+    }, 1000);
+}
+
+// Audio Visualization
+function visualizeAudio(stream) {
+    audioContext = new (window.AudioContext || window.webkitAudioContext)();
+    const source = audioContext.createMediaStreamSource(stream);
+    const analyser = audioContext.createAnalyser();
+    
+    source.connect(analyser);
+    analyser.fftSize = 2048;
+    const bufferLength = analyser.frequencyBinCount;
+    const dataArray = new Uint8Array(bufferLength);
+
     function draw() {
         analyser.getByteTimeDomainData(dataArray);
-        waveformCtx.clearRect(0, 0, waveform.width, waveform.height);
+        waveformCtx.fillStyle = 'rgba(0, 0, 0, 0.1)';
+        waveformCtx.fillRect(0, 0, waveformCanvas.width, waveformCanvas.height);
         
-        // Yellow waveform
-        waveformCtx.strokeStyle = '#FFFF00';
         waveformCtx.lineWidth = 2;
+        waveformCtx.strokeStyle = '#FFFF00';
+        waveformCtx.beginPath();
+
+        const sliceWidth = waveformCanvas.width * 1.0 / bufferLength;
+        let x = 0;
+
+        for (let i = 0; i < bufferLength; i++) {
+            const v = dataArray[i] / 128.0;
+            const y = v * waveformCanvas.height / 2;
+            
+            if (i === 0) waveformCtx.moveTo(x, y);
+            else waveformCtx.lineTo(x, y);
+            
+            x += sliceWidth;
+        }
+
+        waveformCtx.stroke();
+        animationId = requestAnimationFrame(draw);
+    }
+    draw();
+}
+
+// Voice Recording
+async function startRecording() {
+    try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        mediaRecorder = new MediaRecorder(stream);
+        audioChunks = [];
         
-        // Rest of drawing code...
+        mediaRecorder.ondataavailable = event => {
+            audioChunks.push(event.data);
+        };
+        
+        mediaRecorder.onstop = () => {
+            const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+            // Process audio here if needed
+        };
+
+        mediaRecorder.start();
+        isRecording = true;
+        startVoiceButton.textContent = 'Stop Voice';
+        startVoiceButton.classList.add('recording');
+        redDot.style.display = 'block';
+        startCountdown();
+        visualizeAudio(stream);
+    } catch (err) {
+        alert('Microphone access required!');
+    }
+}
+
+function stopRecording() {
+    if (mediaRecorder && isRecording) {
+        mediaRecorder.stop();
+        isRecording = false;
+        startVoiceButton.textContent = 'Start Voice';
+        startVoiceButton.classList.remove('recording');
+        redDot.style.display = 'none';
+        clearInterval(countdownInterval);
+        cancelAnimationFrame(animationId);
+    }
+}
+
+// Style Select Options
+const artStyles = [
+    'Hyper-realistic Photo',
+    'Japanese Anime Style',
+    'Abstract',
+    'Surrealism',
+    'Post-modern',
+    'Cyberpunk',
+    'Arabic Calligraphy',
+    'Chinese Calligraphy',
+    'Japanese Calligraphy',
+    'Marvel Comic',
+    'Art Deco',
+    'Impressionist',
+    'Pop Art',
+    'Digital Painting',
+    'Minimalism'
+];
+
+artStyles.forEach(style => {
+    const option = document.createElement('option');
+    option.value = style.toLowerCase().replace(/ /g, '-');
+    option.textContent = style;
+    styleSelect.appendChild(option);
+});
+
+// Image Generation
+generateButton.addEventListener('click', async () => {
+    if (!activityInput.value.trim() || styleSelect.value === 'none') {
+        alert('Please describe your mood and select a style!');
+        return;
     }
 
-    // 3. Ensure initialization overlay removal
-    document.getElementById('initOverlay').addEventListener('click', async () => {
-        try {
-            // ... existing code ...
-            document.getElementById('initOverlay').remove();  // Instead of hiding
-        } catch (err) {
-            // ... error handling ...
-        }
-    });
+    const loadingIndicator = document.getElementById('loadingIndicator');
+    loadingIndicator.style.display = 'flex';
+    
+    try {
+        // Simulated API call with style-based image
+        await new Promise(resolve => setTimeout(resolve, 1500));
+        generatedImage.src = `https://source.unsplash.com/random/800x600/?${styleSelect.value},art`;
+        generatedImage.style.display = 'block';
+    } catch (error) {
+        alert('Image generation failed: ' + error.message);
+    } finally {
+        loadingIndicator.style.display = 'none';
+    }
+});
 
-    // 4. Add container visibility initialization
-    const container = document.querySelector('.container');
-    container.style.visibility = 'visible';
-    container.style.opacity = '1';
+// Save Functionality
+saveButton.addEventListener('click', () => {
+    if (!generatedImage.src || !activityInput.value.trim()) {
+        alert('No image to save!');
+        return;
+    }
+    
+    // Save image
+    const link = document.createElement('a');
+    link.download = 'mood-art.png';
+    link.href = generatedImage.src;
+    link.click();
+    
+    // Add to mood history
+    const entry = document.createElement('div');
+    entry.className = 'mood-entry';
+    entry.innerHTML = `
+        <span>${new Date().toLocaleDateString('en-US', {
+            year: 'numeric',
+            month: '2-digit',
+            day: '2-digit'
+        })} - ${activityInput.value}</span>
+        <button class="delete-btn" onclick="this.parentElement.remove()">✕</button>
+    `;
+    moodHistory.prepend(entry);
+    
+    activityInput.value = '';
+    styleSelect.value = 'none';
+});
+
+// Event Listeners
+startVoiceButton.addEventListener('click', () => {
+    if (!isRecording) {
+        startRecording();
+    } else {
+        stopRecording();
+    }
+});
+
+redoButton.addEventListener('click', () => {
+    activityInput.value = '';
+    styleSelect.value = 'none';
+    generatedImage.style.display = 'none';
+});
 </script>
-</body>
-</html>
