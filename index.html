@@ -3,13 +3,13 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>MIA - Debug Transcription</title>
+  <title>Mood Into Art - Voice Debug</title>
 </head>
 <body>
   <div>
     <h2>Transcription Debug</h2>
     <button id="startVoice">Start Voice</button>
-    <div id="transcribingIndicator" style="display:none;">Listening...</div>
+    <div id="transcribingIndicator" style="display:none;">🎙 Listening...</div>
     <textarea id="activityInput" rows="4" placeholder="Describe your mood..."></textarea>
   </div>
 
@@ -27,17 +27,17 @@
         if (audioContext.state === 'suspended') {
           await audioContext.resume();
         }
-
         mediaStream = await navigator.mediaDevices.getUserMedia({ audio: true });
         return true;
       } catch (e) {
-        alert("Microphone access failed: " + e.message);
+        alert("❌ Microphone access failed: " + e.message);
         return false;
       }
     }
 
     async function startRecording() {
       try {
+        console.log("🔄 Getting AssemblyAI token...");
         const { token } = await fetch("https://mood-into-art-backend.onrender.com/assemblyai-token")
           .then(res => res.json());
 
@@ -46,54 +46,52 @@
         socket.onmessage = (msg) => {
           const data = JSON.parse(msg.data);
           console.log("📥 AssemblyAI message:", data);
-
           if (data.text) {
-            console.log("📝 Transcription received:", data.text);
+            console.log("📝 Transcription:", data.text);
             activityInput.value = data.text;
           }
         };
 
         socket.onopen = async () => {
+          console.log("✅ WebSocket connected");
           transcribingIndicator.style.display = 'block';
 
-          // Add the audio processor code into the browser
           await audioContext.audioWorklet.addModule(URL.createObjectURL(new Blob([`
             class AudioProcessor extends AudioWorkletProcessor {
               constructor() {
                 super();
               }
               process(inputs) {
-                const input = inputs[0]?.[0];
-                if (input && input.length > 0) {
-                  const downsampled = downsampleBuffer(input, sampleRate, 16000);
-                  const int16 = floatTo16BitPCM(downsampled);
-                  this.port.postMessage(int16);
-                }
+                const input = inputs[0][0];
+                if (!input) return true;
+
+                const downsampled = downsampleBuffer(input, sampleRate, 16000);
+                const int16 = floatTo16BitPCM(downsampled);
+                this.port.postMessage(int16);
                 return true;
               }
             }
 
             function floatTo16BitPCM(input) {
-              const len = input.length;
-              const result = new Int16Array(len);
-              for (let i = 0; i < len; i++) {
-                result[i] = Math.max(-1, Math.min(1, input[i])) * 32767;
+              const output = new Int16Array(input.length);
+              for (let i = 0; i < input.length; i++) {
+                const s = Math.max(-1, Math.min(1, input[i]));
+                output[i] = s * 0x7FFF;
               }
-              return result.buffer;
+              return output.buffer;
             }
 
             function downsampleBuffer(buffer, sampleRate, outRate) {
               if (outRate === sampleRate) return buffer;
-              const sampleRateRatio = sampleRate / outRate;
-              const newLength = Math.round(buffer.length / sampleRateRatio);
+              const ratio = sampleRate / outRate;
+              const newLength = Math.round(buffer.length / ratio);
               const result = new Float32Array(newLength);
               let offset = 0;
               for (let i = 0; i < newLength; i++) {
-                const nextOffset = Math.round((i + 1) * sampleRateRatio);
+                const nextOffset = Math.round((i + 1) * ratio);
                 let sum = 0, count = 0;
                 for (let j = offset; j < nextOffset && j < buffer.length; j++) {
-                  sum += buffer[j];
-                  count++;
+                  sum += buffer[j]; count++;
                 }
                 result[i] = sum / count;
                 offset = nextOffset;
@@ -107,16 +105,16 @@
           const source = audioContext.createMediaStreamSource(mediaStream);
           workletNode = new AudioWorkletNode(audioContext, 'audio-processor');
 
-          // 🔥 Send raw audio directly (no base64!)
           workletNode.port.onmessage = (e) => {
             if (socket.readyState === WebSocket.OPEN) {
-              socket.send(e.data);  // e.data is raw binary buffer
-              console.log("📤 Sent audio chunk (raw)");
+              socket.send(e.data);  // ✅ Send raw PCM buffer
+              console.log("📤 Sent audio chunk");
             }
           };
 
           source.connect(workletNode);
           workletNode.connect(audioContext.destination);
+          console.log("🔗 Audio pipeline connected");
         };
 
         socket.onclose = () => {
@@ -124,25 +122,22 @@
           stopRecording();
         };
 
-        socket.onerror = (e) => {
-          console.error("❌ WebSocket error:", e);
+        socket.onerror = (err) => {
+          console.error("❌ WebSocket error:", err);
         };
 
       } catch (e) {
-        alert("Failed to start recording: " + e.message);
+        alert("⚠️ Failed to start recording: " + e.message);
+        stopRecording();
       }
     }
 
     function stopRecording() {
-      try {
-        if (socket && socket.readyState === WebSocket.OPEN) socket.close();
-        if (audioContext && audioContext.state !== 'closed') audioContext.close();
-        if (mediaStream) mediaStream.getTracks().forEach(track => track.stop());
-        transcribingIndicator.style.display = 'none';
-        console.log("🛑 Recording stopped");
-      } catch (err) {
-        console.warn("⚠️ Error during cleanup:", err.message);
-      }
+      if (socket && socket.readyState === WebSocket.OPEN) socket.close();
+      if (audioContext && audioContext.state !== 'closed') audioContext.close();
+      if (mediaStream) mediaStream.getTracks().forEach(track => track.stop());
+      transcribingIndicator.style.display = 'none';
+      console.log("🛑 Recording stopped");
     }
 
     startVoiceButton.addEventListener("click", async () => {
@@ -150,8 +145,8 @@
         isRecording = true;
         startVoiceButton.textContent = "Stop Voice";
 
-        const unlocked = await unlockAudioContextAndMic();
-        if (unlocked) {
+        const micReady = await unlockAudioContextAndMic();
+        if (micReady) {
           await startRecording();
         } else {
           isRecording = false;
