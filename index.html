@@ -3,11 +3,11 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>MIA - Base64 Audio Fix</title>
+  <title>MIA - Debug Transcription</title>
 </head>
 <body>
   <div>
-    <h2>Final Voice Capture (Base64 Fix)</h2>
+    <h2>Transcription Debug</h2>
     <button id="startVoice">Start Voice</button>
     <div id="transcribingIndicator" style="display:none;">Listening...</div>
     <textarea id="activityInput" rows="4" placeholder="Describe your mood..."></textarea>
@@ -45,7 +45,10 @@
 
         socket.onmessage = (msg) => {
           const data = JSON.parse(msg.data);
+          console.log("📥 AssemblyAI message:", data);
+
           if (data.text) {
+            console.log("📝 Transcription received:", data.text);
             activityInput.value = data.text;
           }
         };
@@ -104,6 +107,7 @@
             if (socket.readyState === WebSocket.OPEN) {
               const base64Audio = btoa(String.fromCharCode(...new Uint8Array(e.data)));
               socket.send(base64Audio);
+              console.log("📤 Sent audio chunk (base64):", base64Audio.slice(0, 50) + "...");
             }
           };
 
@@ -112,6 +116,7 @@
         };
 
         socket.onclose = () => {
+          console.warn("🛑 WebSocket closed");
           stopRecording();
         };
 
@@ -130,6 +135,7 @@
         if (audioContext && audioContext.state !== 'closed') audioContext.close();
         if (mediaStream) mediaStream.getTracks().forEach(track => track.stop());
         transcribingIndicator.style.display = 'none';
+        console.log("🛑 Recording stopped");
       } catch (err) {
         console.warn("⚠️ Error during cleanup:", err.message);
       }
