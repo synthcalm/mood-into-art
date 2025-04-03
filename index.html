@@ -1,110 +1,80 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <!-- Keep existing head content -->
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MIA (Mood Into Art)</title>
   <style>
-    /* Add/modify these styles */
-    .footer-bar {
-      font-size: 0.9em; /* Smaller font */
+    /* Cyan theme adjustments */
+    body {
+      background-color: #000;
+      color: #00FFFF;
     }
-    
-    #countdownDisplay {
-      color: #FFFF00; /* Yellow for better visibility */
+    .container {
+      border: 2px solid #00FFFF;
+      background-color: rgba(0, 32, 32, 0.95);
     }
-
-    /* Date/time inline styling */
-    #dateTimeDisplay {
-      display: flex;
-      gap: 10px;
+    canvas#waveform {
+      border: 1px solid #00FFFF;
+      background-image:
+        linear-gradient(to right, rgba(0, 255, 255, 0.1) 1px, transparent 1px),
+        linear-gradient(to bottom, rgba(0, 255, 255, 0.1) 1px, transparent 1px);
     }
-
-    /* Image generation fix */
-    #generatedImage {
-      display: block !important; /* Force display when src exists */
-      max-width: 90%;
-      margin: 15px auto;
+    /* Yellow waveform visualization */
+    .waveform-path {
+      stroke: #FFFF00 !important;
+      stroke-width: 2px !important;
+    }
+    /* Enhanced visibility */
+    .button {
+      border: 2px solid #00FFFF;
+      transition: all 0.2s ease-in-out;
+    }
+    .button:hover {
+      background-color: #00FFFF;
+      color: #002;
     }
   </style>
 </head>
 <body>
-  <!-- Modify footer bar -->
-  <div class="footer-bar">
-    <div id="dateTimeDisplay">
-      <span id="currentDate"></span>
-      <span id="currentTime"></span>
-    </div>
-    <div id="countdownDisplay">00:30:00</div>
-  </div>
+  <!-- Add this initialization check -->
+  <div id="initCheck" style="display: none;"></div>
 
 <script>
-    // ========== COUNTDOWN TIMER FIX (30 minutes) ==========
-    const MAX_RECORD_TIME = 30 * 60; // 30 minutes in seconds
-
-    function startCountdown() {
-      let seconds = MAX_RECORD_TIME;
-      countdownInterval = setInterval(() => {
-        const hours = Math.floor(seconds / 3600);
-        const minutes = Math.floor((seconds % 3600) / 60);
-        const secs = seconds % 60;
-        
-        document.getElementById('countdownDisplay').textContent = 
-          `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
-          
-        if (seconds-- <= 0) clearInterval(countdownInterval);
-      }, 1000);
-    }
-
-    // ========== DATE/TIME FORMAT FIX ==========
-    function updateDateTime() {
-      const now = new Date();
-      document.getElementById('currentDate').textContent = now.toLocaleDateString('en-US', {
-        year: 'numeric',
-        month: 'short',
-        day: 'numeric'
-      });
-      document.getElementById('currentTime').textContent = now.toLocaleTimeString('en-US', {
-        hour: '2-digit',
-        minute: '2-digit',
-        second: '2-digit'
-      });
-    }
-
-    // ========== IMAGE GENERATION FIX ==========
-    generateButton.addEventListener('click', async () => {
-      if (!activityInput.value.trim() || styleSelect.value === 'none') {
-        alert('Please describe your mood and select a style!');
-        return;
-      }
-
-      const loading = document.getElementById('loadingIndicator');
-      const generatedImage = document.getElementById('generatedImage');
-      
-      try {
-        loading.style.display = 'flex';
-        generatedImage.style.display = 'none';
-
-        // Simulated API call with 1.5s delay
-        await new Promise(resolve => setTimeout(resolve, 1500));
-        
-        // Use actual working image URL
-        generatedImage.src = `https://source.unsplash.com/random/800x600/?${encodeURIComponent(styleSelect.value)}`;
-        generatedImage.onload = () => {
-          generatedImage.style.display = 'block';
-          document.getElementById('beepSound').play();
-          addHistoryEntry(activityInput.value);
-        };
-        
-      } catch (error) {
-        console.error('Generation error:', error);
-        alert('Image generation failed: ' + error.message);
-      } finally {
-        loading.style.display = 'none';
-      }
+    // ================== CRITICAL FIXES ==================
+    // 1. Add DOMContentLoaded listener
+    document.addEventListener('DOMContentLoaded', () => {
+        // Force UI rendering
+        document.getElementById('initCheck').offsetHeight;
+        document.getElementById('container').style.visibility = 'visible';
     });
 
-    // Initialize with current time
-    updateDateTime();
-    setInterval(updateDateTime, 1000);
+    // 2. Modified waveform drawing with yellow color
+    function draw() {
+        analyser.getByteTimeDomainData(dataArray);
+        waveformCtx.clearRect(0, 0, waveform.width, waveform.height);
+        
+        // Yellow waveform
+        waveformCtx.strokeStyle = '#FFFF00';
+        waveformCtx.lineWidth = 2;
+        
+        // Rest of drawing code...
+    }
+
+    // 3. Ensure initialization overlay removal
+    document.getElementById('initOverlay').addEventListener('click', async () => {
+        try {
+            // ... existing code ...
+            document.getElementById('initOverlay').remove();  // Instead of hiding
+        } catch (err) {
+            // ... error handling ...
+        }
+    });
+
+    // 4. Add container visibility initialization
+    const container = document.querySelector('.container');
+    container.style.visibility = 'visible';
+    container.style.opacity = '1';
 </script>
 </body>
 </html>
