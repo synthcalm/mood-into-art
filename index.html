@@ -3,262 +3,71 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>MIA (Mood Into Art)</title>
-  <style>
-    body {
-      font-family: Arial, sans-serif;
-      margin: 0;
-      background-color: #000;
-      color: #00FFFF;
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      min-height: 100vh;
-      overflow: auto;
-    }
-    .container {
-      width: 95%;
-      max-width: 500px;
-      padding: 20px;
-      border: 2px solid #00FFFF;
-      border-radius: 12px;
-      background-color: rgba(0, 0, 0, 0.9);
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      margin: 20px 0;
-    }
-    canvas#waveform {
-      width: 100%;
-      height: 160px;
-      background-color: rgba(0, 0, 0, 0.5);
-      border: 1px solid #00FFFF;
-      margin-bottom: 10px;
-      background-image:
-        linear-gradient(to right, rgba(0, 255, 255, 0.3) 1px, transparent 1px),
-        linear-gradient(to bottom, rgba(0, 255, 255, 0.3) 1px, transparent 1px);
-      background-size: 20px 20px;
-    }
-    .dot-alert {
-      width: 10px;
-      height: 10px;
-      border-radius: 50%;
-      background-color: red;
-      animation: blink 1s infinite;
-      display: none;
-      margin-bottom: 10px;
-    }
-    @keyframes blink {
-      0%, 100% { opacity: 1; }
-      50% { opacity: 0; }
-    }
-    .footer-bar {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      width: 100%;
-      font-size: 12px;
-      color: #00FFFF;
-      padding: 0 10px;
-      margin: 10px 0;
-    }
-    textarea, select {
-      width: 100%;
-      padding: 10px;
-      background-color: rgba(0, 0, 0, 0.8);
-      border: 2px solid #00FFFF;
-      color: #00FFFF;
-      margin-bottom: 10px;
-      resize: vertical;
-    }
-    .button-group {
-      width: 100%;
-      display: grid;
-      grid-template-columns: repeat(2, 1fr);
-      gap: 10px;
-      margin-top: 10px;
-    }
-    .button {
-      background-color: #000;
-      border: 2px solid #00FFFF;
-      color: #00FFFF;
-      padding: 10px;
-      cursor: pointer;
-      transition: all 0.3s ease;
-    }
-    .button:hover {
-      background-color: #00FFFF;
-      color: #000;
-    }
-    .button.recording {
-      background-color: #FFFF00;
-      color: #000;
-    }
-    #loadingIndicator {
-      display: none;
-      justify-content: center;
-      gap: 4px;
-      margin-top: 10px;
-    }
-    .dot {
-      width: 4px;
-      height: 4px;
-      background-color: #00FFFF;
-      border-radius: 50%;
-      opacity: 0;
-      animation: blink 1.6s infinite;
-    }
-    .dot:nth-child(1) { animation-delay: 0s; }
-    .dot:nth-child(2) { animation-delay: 0.4s; }
-    .dot:nth-child(3) { animation-delay: 0.8s; }
-    .dot:nth-child(4) { animation-delay: 1.2s; }
-    #generatedImage {
-      max-width: 100%;
-      border: 1px solid #00FFFF;
-      margin-top: 20px;
-      display: none;
-      background: #000;
-    }
-    #moodHistory {
-      max-height: 200px;
-      overflow-y: auto;
-      width: 100%;
-    }
-    .history-entry {
-      position: relative;
-      width: 100%;
-      margin: 8px 0;
-      padding: 10px;
-      border: 1px solid #00FFFF;
-      border-radius: 6px;
-    }
-    .entry-content {
-      width: calc(100% - 60px);
-      padding: 5px;
-      min-height: 20px;
-      background: transparent;
-      color: #00FFFF;
-    }
-    .entry-actions {
-      position: absolute;
-      top: 5px;
-      right: 5px;
-      display: flex;
-      gap: 5px;
-    }
-    .entry-btn {
-      background: none;
-      border: 1px solid #00FFFF;
-      color: #00FFFF;
-      cursor: pointer;
-      padding: 2px 5px;
-      font-size: 0.8em;
-    }
-    .entry-btn:hover {
-      background: #00FFFF;
-      color: #000;
-    }
-    .timestamp {
-      font-size: 0.8em;
-      color: #00FFFF;
-      opacity: 0.7;
-      margin-bottom: 5px;
-    }
-    #transcribingIndicator {
-      margin-top: 10px;
-      color: #FFFF00;
-      display: none;
-    }
-  </style>
+  <title>MIA Debug Mode</title>
 </head>
 <body>
-  <div class="container">
-    <canvas id="waveform"></canvas>
-    <div class="footer-bar">
-      <div id="dateTimeDisplay"></div>
-      <div id="countdownDisplay">00:60:00</div>
-    </div>
-    <div class="dot-alert" id="redDot"></div>
+  <div>
+    <h2>Debug Version - Voice Input Test</h2>
+    <button id="startVoice">Start Voice</button>
+    <div id="transcribingIndicator" style="display:none;">Listening...</div>
     <textarea id="activityInput" rows="4" placeholder="Describe your mood..."></textarea>
-    <div id="transcribingIndicator">Listening...</div>
-    <select id="styleSelect">
-      <option value="none" selected disabled>Choose Style</option>
-      <option value="photo">Hyper-realistic Photo</option>
-      <option value="anime">Japanese Anime Style</option>
-      <option value="abstract">Abstract</option>
-      <option value="surrealism">Surrealism</option>
-      <option value="post-modern">Post-modern</option>
-      <option value="cyberpunk">Cyberpunk</option>
-      <option value="arabic-calligraphy">Arabic Calligraphy</option>
-      <option value="chinese-calligraphy">Chinese Calligraphy</option>
-      <option value="japanese-calligraphy">Japanese Calligraphy</option>
-      <option value="marvel">Marvel Comic</option>
-      <option value="art-deco">Art Deco</option>
-      <option value="impressionist">Impressionist</option>
-      <option value="pop-art">Pop Art</option>
-      <option value="digital-painting">Digital Painting</option>
-      <option value="minimalism">Minimalism</option>
-    </select>
-    <div class="button-group">
-      <button class="button" id="startVoice">Start Voice</button>
-      <button class="button" id="redo">Redo</button>
-      <button class="button" id="generate">Generate Image</button>
-      <button class="button" id="saveImage">Save</button>
-    </div>
-    <div id="loadingIndicator">
-      <div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div>
-    </div>
-    <img id="generatedImage"/>
-    <div id="moodHistory"></div>
-    <audio id="beepSound" src="https://actions.google.com/sounds/v1/cartoon/clang_and_wobble.ogg"></audio>
-    <audio id="chimeSound" src="https://actions.google.com/sounds/v1/cartoon/wood_plank_flicks.ogg"></audio>
-    <audio id="saveSound" src="https://actions.google.com/sounds/v1/cartoon/pop.ogg"></audio>
   </div>
+
   <script>
     const ASSEMBLYAI_API_KEY = 'eeee5d1982444610a670bd17152a8e4a';
     const activityInput = document.getElementById('activityInput');
     const transcribingIndicator = document.getElementById('transcribingIndicator');
     const startVoiceButton = document.getElementById('startVoice');
-    const redDot = document.getElementById('redDot');
-    const countdownDisplay = document.getElementById('countdownDisplay');
-    let socket, audioContext, mediaStream, countdownInterval, sourceNode, processorNode;
+
+    let socket, audioContext, mediaStream, processorNode, sourceNode;
     let isRecording = false;
 
     async function startRecording() {
       try {
+        console.log("🔄 Requesting AssemblyAI token...");
         const { token } = await fetch("https://api.assemblyai.com/v2/realtime/token", {
           method: "POST",
           headers: { authorization: ASSEMBLYAI_API_KEY }
         }).then(res => res.json());
 
+        console.log("✅ Token received, connecting WebSocket...");
         socket = new WebSocket(`wss://api.assemblyai.com/v2/realtime/ws?sample_rate=16000&token=${token}`);
 
         socket.onmessage = (msg) => {
           const data = JSON.parse(msg.data);
-          if (data.text) activityInput.value = data.text;
+          if (data.text) {
+            console.log("📝 Transcription:", data.text);
+            activityInput.value = data.text;
+          }
         };
 
         socket.onopen = async () => {
+          console.log("✅ WebSocket connected");
           transcribingIndicator.style.display = 'block';
-          redDot.style.display = 'block';
+          console.log("🎙 Requesting microphone access...");
           mediaStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+
+          console.log("🎧 Initializing AudioContext...");
           audioContext = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 16000 });
           sourceNode = audioContext.createMediaStreamSource(mediaStream);
           processorNode = audioContext.createScriptProcessor(4096, 1, 1);
+
           processorNode.onaudioprocess = (e) => {
             const input = e.inputBuffer.getChannelData(0);
             const int16 = floatTo16BitPCM(input);
             if (socket.readyState === WebSocket.OPEN) socket.send(int16);
           };
+
           sourceNode.connect(processorNode);
           processorNode.connect(audioContext.destination);
-          startCountdown();
         };
 
-        socket.onclose = () => stopRecording();
+        socket.onerror = (e) => console.error("❌ WebSocket error:", e);
+        socket.onclose = () => console.log("🛑 WebSocket closed");
 
       } catch (e) {
-        alert("Error accessing mic or AssemblyAI: " + e.message);
+        console.error("❌ Error starting recording:", e.message);
+        alert("Failed to start recording: " + e.message);
       }
     }
 
@@ -267,18 +76,7 @@
       if (audioContext) audioContext.close();
       if (mediaStream) mediaStream.getTracks().forEach(track => track.stop());
       transcribingIndicator.style.display = 'none';
-      redDot.style.display = 'none';
-      clearInterval(countdownInterval);
-    }
-
-    function startCountdown() {
-      let seconds = 3600;
-      countdownInterval = setInterval(() => {
-        const mins = Math.floor(seconds / 60);
-        const secs = seconds % 60;
-        countdownDisplay.textContent = \`\${String(mins).padStart(2, '0')}:\${String(secs).padStart(2, '0')}\`;
-        if (--seconds < 0) clearInterval(countdownInterval);
-      }, 1000);
+      console.log("🛑 Recording stopped");
     }
 
     function floatTo16BitPCM(input) {
@@ -292,14 +90,14 @@
 
     startVoiceButton.addEventListener("click", async () => {
       if (!isRecording) {
+        console.log("▶️ Starting voice capture...");
         isRecording = true;
         startVoiceButton.textContent = "Stop Voice";
-        startVoiceButton.classList.add("recording");
         await startRecording();
       } else {
+        console.log("⏹ Stopping voice capture...");
         isRecording = false;
         startVoiceButton.textContent = "Start Voice";
-        startVoiceButton.classList.remove("recording");
         stopRecording();
       }
     });
