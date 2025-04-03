@@ -5,76 +5,130 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>MIA (Mood Into Art)</title>
   <style>
-    /* Cyan theme adjustments */
+    /* CYAN THEME STYLES */
     body {
+      font-family: Arial, sans-serif;
+      margin: 0;
       background-color: #000;
       color: #00FFFF;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+      overflow: auto;
     }
     .container {
+      width: 95%;
+      max-width: 500px;
+      padding: 20px;
       border: 2px solid #00FFFF;
+      border-radius: 12px;
       background-color: rgba(0, 32, 32, 0.95);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      margin: 20px 0;
     }
-    canvas#waveform {
-      border: 1px solid #00FFFF;
-      background-image:
-        linear-gradient(to right, rgba(0, 255, 255, 0.1) 1px, transparent 1px),
-        linear-gradient(to bottom, rgba(0, 255, 255, 0.1) 1px, transparent 1px);
-    }
-    /* Yellow waveform visualization */
-    .waveform-path {
-      stroke: #FFFF00 !important;
-      stroke-width: 2px !important;
-    }
-    /* Enhanced visibility */
-    .button {
+    /* ART STYLE DROPDOWN */
+    #styleSelect {
+      width: 100%;
+      padding: 10px;
+      background-color: rgba(0, 0, 0, 0.8);
       border: 2px solid #00FFFF;
-      transition: all 0.2s ease-in-out;
+      color: #00FFFF;
+      margin-bottom: 10px;
     }
-    .button:hover {
-      background-color: #00FFFF;
-      color: #002;
+    /* DATE/TIME & COUNTDOWN */
+    .footer-bar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      width: 100%;
+      font-size: 0.9em;
+      color: #00FFFF;
+      padding: 10px 0;
+    }
+    #countdownDisplay {
+      color: #FFFF00;
+      font-weight: bold;
     }
   </style>
 </head>
 <body>
-  <!-- Add this initialization check -->
-  <div id="initCheck" style="display: none;"></div>
+  <div class="container">
+    <!-- ART STYLE SELECTOR -->
+    <select id="styleSelect">
+      <option value="none" selected disabled>Choose Style</option>
+      <option value="photo">Hyper-realistic Photo</option>
+      <option value="anime">Japanese Anime Style</option>
+      <option value="abstract">Abstract</option>
+      <option value="chinese-calligraphy">Chinese Calligraphy</option>
+      <option value="cyberpunk">Cyberpunk</option>
+      <option value="impressionist">Impressionist</option>
+      <option value="pop-art">Pop Art</option>
+    </select>
 
-<script>
-    // ================== CRITICAL FIXES ==================
-    // 1. Add DOMContentLoaded listener
-    document.addEventListener('DOMContentLoaded', () => {
-        // Force UI rendering
-        document.getElementById('initCheck').offsetHeight;
-        document.getElementById('container').style.visibility = 'visible';
-    });
+    <!-- DATE/TIME & TIMER -->
+    <div class="footer-bar">
+      <div id="dateTimeDisplay">
+        <span id="currentDate"></span>
+        <span id="currentTime"></span>
+      </div>
+      <div id="countdownDisplay">00:00:30</div>
+    </div>
 
-    // 2. Modified waveform drawing with yellow color
-    function draw() {
-        analyser.getByteTimeDomainData(dataArray);
-        waveformCtx.clearRect(0, 0, waveform.width, waveform.height);
-        
-        // Yellow waveform
-        waveformCtx.strokeStyle = '#FFFF00';
-        waveformCtx.lineWidth = 2;
-        
-        // Rest of drawing code...
+    <!-- IMAGE GENERATION ELEMENTS -->
+    <div class="button-group">
+      <button class="button" id="generate">Generate Image</button>
+    </div>
+    <img id="generatedImage" style="display: none; max-width: 100%;"/>
+  </div>
+
+  <script>
+    // ART STYLE INTEGRATION
+    const styleSelect = document.getElementById('styleSelect');
+    const generateButton = document.getElementById('generate');
+    const countdownDisplay = document.getElementById('countdownDisplay');
+
+    // 30-SECOND COUNTDOWN TIMER
+    let countdown = 30;
+    function updateCountdown() {
+      const minutes = Math.floor(countdown / 60);
+      const seconds = countdown % 60;
+      countdownDisplay.textContent = 
+        `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+      if (countdown-- <= 0) clearInterval(countdownInterval);
     }
+    let countdownInterval = setInterval(updateCountdown, 1000);
 
-    // 3. Ensure initialization overlay removal
-    document.getElementById('initOverlay').addEventListener('click', async () => {
-        try {
-            // ... existing code ...
-            document.getElementById('initOverlay').remove();  // Instead of hiding
-        } catch (err) {
-            // ... error handling ...
-        }
+    // IMAGE GENERATION FIX
+    generateButton.addEventListener('click', async () => {
+      if (!styleSelect.value || styleSelect.value === 'none') {
+        alert('Please select an art style!');
+        return;
+      }
+
+      const generatedImage = document.getElementById('generatedImage');
+      generatedImage.style.display = 'none';
+
+      // Simulated generation with placeholder
+      await new Promise(resolve => setTimeout(resolve, 1500));
+      
+      // Style-based image generation
+      generatedImage.src = `https://source.unsplash.com/random/800x600/?${styleSelect.value}`;
+      generatedImage.style.display = 'block';
     });
 
-    // 4. Add container visibility initialization
-    const container = document.querySelector('.container');
-    container.style.visibility = 'visible';
-    container.style.opacity = '1';
-</script>
+    // DATE/TIME DISPLAY
+    function updateDateTime() {
+      const now = new Date();
+      document.getElementById('currentDate').textContent = 
+        now.toLocaleDateString('en-US', {month: 'short', day: 'numeric', year: 'numeric'});
+      document.getElementById('currentTime').textContent = 
+        now.toLocaleTimeString('en-US', {hour: '2-digit', minute: '2-digit', second: '2-digit'});
+    }
+    setInterval(updateDateTime, 1000);
+    updateDateTime();
+  </script>
 </body>
 </html>
