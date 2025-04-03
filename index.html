@@ -3,11 +3,11 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>MIA - AudioWorklet Version</title>
+  <title>MIA - Safari Safe AudioWorklet</title>
 </head>
 <body>
   <div>
-    <h2>AudioWorklet Voice Input Test</h2>
+    <h2>Voice Capture - AudioWorklet (Safari Fix)</h2>
     <button id="startVoice">Start Voice</button>
     <div id="transcribingIndicator" style="display:none;">Listening...</div>
     <textarea id="activityInput" rows="4" placeholder="Describe your mood..."></textarea>
@@ -41,6 +41,7 @@
         socket.onopen = async () => {
           console.log("✅ WebSocket connected");
           transcribingIndicator.style.display = 'block';
+
           console.log("🎙 Requesting microphone access...");
           mediaStream = await navigator.mediaDevices.getUserMedia({ audio: true });
 
@@ -90,6 +91,11 @@
             registerProcessor('audio-processor', AudioProcessor);
           `], { type: "application/javascript" })));
 
+          if (audioContext.state === 'suspended') {
+            console.log("🔔 Resuming audio context...");
+            await audioContext.resume();
+          }
+
           const source = audioContext.createMediaStreamSource(mediaStream);
           workletNode = new AudioWorkletNode(audioContext, 'audio-processor');
 
@@ -118,11 +124,15 @@
     }
 
     function stopRecording() {
-      if (socket) socket.close();
-      if (audioContext) audioContext.close();
-      if (mediaStream) mediaStream.getTracks().forEach(track => track.stop());
-      transcribingIndicator.style.display = 'none';
-      console.log("🛑 Recording stopped");
+      try {
+        if (socket && socket.readyState === WebSocket.OPEN) socket.close();
+        if (audioContext && audioContext.state !== 'closed') audioContext.close();
+        if (mediaStream) mediaStream.getTracks().forEach(track => track.stop());
+        transcribingIndicator.style.display = 'none';
+        console.log("🛑 Recording stopped");
+      } catch (err) {
+        console.warn("⚠️ Error during cleanup:", err.message);
+      }
     }
 
     startVoiceButton.addEventListener("click", async () => {
