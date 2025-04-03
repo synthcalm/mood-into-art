@@ -3,11 +3,11 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>MIA Debug Final</title>
+  <title>MIA - AudioWorklet Version</title>
 </head>
 <body>
   <div>
-    <h2>Debug Final Version - Voice Input Test</h2>
+    <h2>AudioWorklet Voice Input Test</h2>
     <button id="startVoice">Start Voice</button>
     <div id="transcribingIndicator" style="display:none;">Listening...</div>
     <textarea id="activityInput" rows="4" placeholder="Describe your mood..."></textarea>
@@ -18,7 +18,7 @@
     const transcribingIndicator = document.getElementById('transcribingIndicator');
     const startVoiceButton = document.getElementById('startVoice');
 
-    let socket, audioContext, mediaStream, processorNode, sourceNode;
+    let socket, audioContext, mediaStream, workletNode;
     let isRecording = false;
 
     async function startRecording() {
@@ -30,28 +30,6 @@
         console.log("✅ Token received, connecting WebSocket...");
         socket = new WebSocket(`wss://api.assemblyai.com/v2/realtime/ws?sample_rate=16000&token=${token}`);
 
-        socket.onopen = async () => {
-          console.log("✅ WebSocket connected");
-          transcribingIndicator.style.display = 'block';
-          console.log("🎙 Requesting microphone access...");
-          mediaStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-
-          console.log("🎧 Initializing AudioContext...");
-          audioContext = new (window.AudioContext || window.webkitAudioContext)();
-          sourceNode = audioContext.createMediaStreamSource(mediaStream);
-          processorNode = audioContext.createScriptProcessor(4096, 1, 1);
-
-          processorNode.onaudioprocess = (e) => {
-            const input = e.inputBuffer.getChannelData(0);
-            const downsampled = downsampleBuffer(input, audioContext.sampleRate, 16000);
-            const int16 = floatTo16BitPCM(downsampled);
-            if (socket.readyState === WebSocket.OPEN) socket.send(int16);
-          };
-
-          sourceNode.connect(processorNode);
-          processorNode.connect(audioContext.destination);
-        };
-
         socket.onmessage = (msg) => {
           const data = JSON.parse(msg.data);
           if (data.text) {
@@ -60,10 +38,77 @@
           }
         };
 
-        socket.onerror = (e) => console.error("❌ WebSocket error:", e);
+        socket.onopen = async () => {
+          console.log("✅ WebSocket connected");
+          transcribingIndicator.style.display = 'block';
+          console.log("🎙 Requesting microphone access...");
+          mediaStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+
+          console.log("🎧 Initializing AudioContext with AudioWorklet...");
+          audioContext = new (window.AudioContext || window.webkitAudioContext)();
+          await audioContext.audioWorklet.addModule(URL.createObjectURL(new Blob([`
+            class AudioProcessor extends AudioWorkletProcessor {
+              constructor() {
+                super();
+              }
+              process(inputs) {
+                const input = inputs[0][0];
+                if (input) {
+                  const downsampled = downsampleBuffer(input, sampleRate, 16000);
+                  const int16 = floatTo16BitPCM(downsampled);
+                  this.port.postMessage(int16);
+                }
+                return true;
+              }
+            }
+            function floatTo16BitPCM(input) {
+              const len = input.length;
+              const result = new Int16Array(len);
+              for (let i = 0; i < len; i++) {
+                result[i] = Math.max(-1, Math.min(1, input[i])) * 32767;
+              }
+              return result.buffer;
+            }
+            function downsampleBuffer(buffer, sampleRate, outRate) {
+              if (outRate === sampleRate) return buffer;
+              const sampleRateRatio = sampleRate / outRate;
+              const newLength = Math.round(buffer.length / sampleRateRatio);
+              const result = new Float32Array(newLength);
+              let offset = 0;
+              for (let i = 0; i < newLength; i++) {
+                const nextOffset = Math.round((i + 1) * sampleRateRatio);
+                let sum = 0, count = 0;
+                for (let j = offset; j < nextOffset && j < buffer.length; j++) {
+                  sum += buffer[j];
+                  count++;
+                }
+                result[i] = sum / count;
+                offset = nextOffset;
+              }
+              return result;
+            }
+            registerProcessor('audio-processor', AudioProcessor);
+          `], { type: "application/javascript" })));
+
+          const source = audioContext.createMediaStreamSource(mediaStream);
+          workletNode = new AudioWorkletNode(audioContext, 'audio-processor');
+
+          workletNode.port.onmessage = (e) => {
+            if (socket.readyState === WebSocket.OPEN) {
+              socket.send(e.data);
+            }
+          };
+
+          source.connect(workletNode).connect(audioContext.destination);
+        };
+
         socket.onclose = () => {
           console.log("🛑 WebSocket closed");
           stopRecording();
+        };
+
+        socket.onerror = (e) => {
+          console.error("❌ WebSocket error:", e);
         };
 
       } catch (e) {
@@ -78,34 +123,6 @@
       if (mediaStream) mediaStream.getTracks().forEach(track => track.stop());
       transcribingIndicator.style.display = 'none';
       console.log("🛑 Recording stopped");
-    }
-
-    function floatTo16BitPCM(input) {
-      const len = input.length;
-      const result = new Int16Array(len);
-      for (let i = 0; i < len; i++) {
-        result[i] = Math.max(-1, Math.min(1, input[i])) * 32767;
-      }
-      return result.buffer;
-    }
-
-    function downsampleBuffer(buffer, sampleRate, outRate = 16000) {
-      if (outRate === sampleRate) return buffer;
-      const sampleRateRatio = sampleRate / outRate;
-      const newLength = Math.round(buffer.length / sampleRateRatio);
-      const result = new Float32Array(newLength);
-      let offset = 0;
-      for (let i = 0; i < newLength; i++) {
-        const nextOffset = Math.round((i + 1) * sampleRateRatio);
-        let sum = 0, count = 0;
-        for (let j = offset; j < nextOffset && j < buffer.length; j++) {
-          sum += buffer[j];
-          count++;
-        }
-        result[i] = sum / count;
-        offset = nextOffset;
-      }
-      return result;
     }
 
     startVoiceButton.addEventListener("click", async () => {
