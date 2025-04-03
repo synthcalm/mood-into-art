@@ -130,7 +130,7 @@
     .entry-content {
       width: calc(100% - 60px);
       padding: 5px;
-      min-height: 20px;
+      min-Height: 20px;
       background: transparent;
       color: #00FFFF;
     }
@@ -226,10 +226,10 @@
   </div>
 
   <script>
-    // API endpoint URL
+    // API endpoint URL - Updated to remove the port
     const API_URL = window.location.hostname === 'localhost' 
       ? 'http://localhost:5000' 
-      : 'https://openai-image-backend.onrender.com:10000';
+      : 'https://openai-image-backend.onrender.com';
 
     // Audio and Recording System
     let audioContext, mediaRecorder, audioChunks = [], stream;
@@ -323,14 +323,15 @@
               const formData = new FormData();
               formData.append('audio', audioBlob, 'recording.webm');
               
-              console.log('Sending audio to backend for transcription...');
+              console.log('Sending audio to backend for transcription:', `${API_URL}/transcribe`);
               const response = await fetch(`${API_URL}/transcribe`, {
                 method: 'POST',
                 body: formData
               });
               
               if (!response.ok) {
-                throw new Error('Transcription failed: ' + response.statusText);
+                const errorText = await response.text();
+                throw new Error(`Transcription failed: ${response.status} ${response.statusText} - ${errorText}`);
               }
               
               const data = await response.json();
@@ -341,7 +342,7 @@
               document.getElementById('chimeSound').play();
             } catch (error) {
               console.error('Error transcribing:', error);
-              alert('Failed to transcribe audio: ' + error.message);
+              alert(`Failed to transcribe audio: ${error.message}`);
             } finally {
               transcribingIndicator.style.display = 'none';
               if (stream) {
@@ -473,7 +474,8 @@
         });
 
         if (!response.ok) {
-          throw new Error('Image generation failed: ' + response.statusText);
+          const errorText = await response.text();
+          throw new Error(`Image generation failed: ${response.status} ${response.statusText} - ${errorText}`);
         }
 
         const data = await response.json();
@@ -487,7 +489,7 @@
         document.getElementById('beepSound').play();
       } catch (error) {
         console.error('Image generation error:', error);
-        alert('Generation error: ' + error.message);
+        alert(`Generation error: ${error.message}`);
       } finally {
         loading.style.display = 'none';
       }
@@ -533,14 +535,17 @@
     // Health check on load to verify API connection
     async function checkApiHealth() {
       try {
+        console.log('Checking API health at:', `${API_URL}/health`);
         const response = await fetch(`${API_URL}/health`);
         if (!response.ok) {
-          console.warn('API health check failed. Some features may not work correctly:', response.statusText);
-        } else {
-          console.log('API health check passed');
+          console.warn('API health check failed:', response.status, response.statusText);
+          throw new Error(`API health check failed: ${response.status} ${response.statusText}`);
         }
+        const data = await response.json();
+        console.log('API health check passed:', data);
       } catch (error) {
         console.error('API connection error:', error);
+        alert(`Cannot connect to the backend server. Please try again later. Error: ${error.message}`);
       }
     }
     
