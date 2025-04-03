@@ -164,6 +164,11 @@
       opacity: 0.7;
       margin-bottom: 5px;
     }
+    #transcribingIndicator {
+      margin-top: 10px;
+      color: #FFFF00;
+      display: none;
+    }
   </style>
 </head>
 <body>
@@ -182,6 +187,7 @@
 
     <div class="dot-alert" id="redDot"></div>
     <textarea id="activityInput" rows="4" placeholder="Describe your mood..."></textarea>
+    <div id="transcribingIndicator">Transcribing your speech...</div>
     
     <select id="styleSelect" style="text-align: center;">
       <option value="none" selected disabled>Choose Style</option>
@@ -225,7 +231,11 @@
   </div>
 
   <script>
-    // Full JavaScript Implementation
+    // API endpoint URL - adjust based on your deployment
+    const API_URL = window.location.hostname === 'localhost' 
+      ? 'http://localhost:5000' 
+      : 'https://your-render-app-url.onrender.com';
+
     // Audio and Recording System
     let audioContext, mediaRecorder, audioChunks = [];
     let isRecording = false, countdownInterval;
@@ -239,6 +249,7 @@
     const styleSelect = document.getElementById('styleSelect');
     const waveform = document.getElementById('waveform');
     const waveformCtx = waveform.getContext('2d');
+    const transcribingIndicator = document.getElementById('transcribingIndicator');
 
     // Initialization
     document.getElementById('initOverlay').addEventListener('click', async () => {
@@ -299,17 +310,50 @@
     }
     setInterval(updateDateTime, 1000);
 
-    // Voice Recording System
+    // Voice Recording System with Transcription
     startVoiceButton.addEventListener('click', async () => {
       if (!isRecording) {
         try {
           const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-          mediaRecorder = new MediaRecorder(stream);
+          audioChunks = []; // Reset audio chunks
+          
+          mediaRecorder = new MediaRecorder(stream, {
+            mimeType: 'audio/webm;codecs=opus'
+          });
           
           mediaRecorder.ondataavailable = e => audioChunks.push(e.data);
-          mediaRecorder.onstop = () => {
+          mediaRecorder.onstop = async () => {
             const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
-            // Handle audio blob here
+            
+            // Show transcribing indicator
+            transcribingIndicator.style.display = 'block';
+            
+            try {
+              // Create form data to send audio file
+              const formData = new FormData();
+              formData.append('audio', audioBlob, 'recording.webm');
+              
+              // Send to transcription API
+              const response = await fetch(`${API_URL}/transcribe`, {
+                method: 'POST',
+                body: formData
+              });
+              
+              if (!response.ok) {
+                throw new Error('Transcription failed');
+              }
+              
+              const data = await response.json();
+              
+              // Update text area with transcription
+              activityInput.value = data.transcription;
+              document.getElementById('chimeSound').play();
+            } catch (error) {
+              console.error('Error transcribing:', error);
+              alert('Failed to transcribe audio: ' + error.message);
+            } finally {
+              transcribingIndicator.style.display = 'none';
+            }
           };
 
           mediaRecorder.start();
@@ -329,6 +373,8 @@
         startVoiceButton.classList.remove('recording');
         document.getElementById('redDot').style.display = 'none';
         clearInterval(countdownInterval);
+        cancelAnimationFrame(animationId);
+        drawWaveformGrid(); // Reset waveform display
       }
     });
 
@@ -379,7 +425,17 @@
         const secs = seconds % 60;
         document.getElementById('countdownDisplay').textContent = 
           `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
-        if (seconds-- <= 0) clearInterval(countdownInterval);
+        
+        if (seconds-- <= 0) {
+          if (isRecording) {
+            mediaRecorder.stop();
+            isRecording = false;
+            startVoiceButton.textContent = 'Start Voice';
+            startVoiceButton.classList.remove('recording');
+            document.getElementById('redDot').style.display = 'none';
+          }
+          clearInterval(countdownInterval);
+        }
       }, 1000);
     }
 
@@ -394,15 +450,29 @@
       loading.style.display = 'flex';
 
       try {
-        // Simulated API Call
-        const prompt = `${activityInput.value} (${styleSelect.options[styleSelect.selectedIndex].text})`;
-        const generatedImage = document.getElementById('generatedImage');
+        const style = styleSelect.options[styleSelect.selectedIndex].text;
+        const prompt = `${activityInput.value} (${style})`;
+        
+        const response = await fetch(`${API_URL}/generate`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ prompt })
+        });
+
+        if (!response.ok) {
+          throw new Error('Image generation failed');
+        }
+
+        const data = await response.json();
         
         // Add to mood history
         addHistoryEntry(prompt);
         
-        // Simulated image URL
-        generatedImage.src = 'https://via.placeholder.com/500x300/00ffff/000?text=Generated+Image';
+        // Display the generated image
+        const generatedImage = document.getElementById('generatedImage');
+        generatedImage.src = data.image;
         generatedImage.style.display = 'block';
         document.getElementById('beepSound').play();
       } catch (error) {
@@ -431,12 +501,14 @@
     // Save Functionality
     document.getElementById('saveImage').addEventListener('click', () => {
       const image = document.getElementById('generatedImage');
-      if (image.src) {
+      if (image.src && image.style.display !== 'none') {
         const link = document.createElement('a');
-        link.download = 'mood-art.png';
+        link.download = `mood-art-${new Date().toISOString().slice(0,10)}.png`;
         link.href = image.src;
         link.click();
         document.getElementById('saveSound').play();
+      } else {
+        alert('No image to save. Generate an image first!');
       }
     });
 
@@ -446,6 +518,21 @@
       styleSelect.value = 'none';
       document.getElementById('generatedImage').style.display = 'none';
     });
+
+    // Health check on load to verify API connection
+    async function checkApiHealth() {
+      try {
+        const response = await fetch(`${API_URL}/health`);
+        if (!response.ok) {
+          console.warn('API health check failed. Some features may not work correctly.');
+        }
+      } catch (error) {
+        console.error('API connection error:', error);
+      }
+    }
+    
+    // Run health check when page loads
+    window.addEventListener('load', checkApiHealth);
   </script>
 </body>
 </html>
