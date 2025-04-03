@@ -130,7 +130,7 @@
     .entry-content {
       width: calc(100% - 60px);
       padding: 5px;
-      min-Height: 20px;
+      min-height: 20px;
       background: transparent;
       color: #00FFFF;
     }
@@ -225,8 +225,10 @@
     <audio id="saveSound" src="https://actions.google.com/sounds/v1/cartoon/pop.ogg"></audio>
   </div>
 
+  ascended to the top of the page, where you can see the top of the page.
+
   <script>
-    // API endpoint URL - Updated to remove the port
+    // API endpoint URL
     const API_URL = window.location.hostname === 'localhost' 
       ? 'http://localhost:5000' 
       : 'https://openai-image-backend.onrender.com';
@@ -364,7 +366,7 @@
           console.error('Microphone access error:', err.name, err.message);
           let errorMessage = 'Microphone access required! ';
           if (isIOS) {
-            errorMessage += 'Please go to Settings > Safari > Microphone and allow access for synthcalm.com, then reload the page.';
+            errorMessage += 'Please go to Settings > Safari > Microphone and allow access for synthcalm.github.io, then reload the page. Alternatively, you can type your mood directly in the text box below.';
           } else {
             errorMessage += 'Please check your browser settings to allow microphone access and reload the page.';
           }
