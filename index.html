@@ -177,7 +177,7 @@
     
     <div class="footer-bar">
       <div id="dateTimeDisplay"></div>
-      <div id="countdownDisplay">00:30:00</div>
+      <div id="countdownDisplay">00:60:00</div>
     </div>
 
     <div class="dot-alert" id="redDot"></div>
@@ -234,7 +234,7 @@
     // Audio and Recording System
     let audioContext, mediaRecorder, audioChunks = [], stream;
     let isRecording = false, countdownInterval;
-    const MAX_RECORD_TIME = 30 * 60;
+    const MAX_RECORD_TIME = 60 * 60; // 60 minutes
     let animationId;
 
     // DOM Elements
@@ -245,6 +245,9 @@
     const waveform = document.getElementById('waveform');
     const waveformCtx = waveform.getContext('2d');
     const transcribingIndicator = document.getElementById('transcribingIndicator');
+
+    // Check if the app is running on iOS
+    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
 
     // Waveform Visualization
     function initWaveform() {
@@ -280,8 +283,7 @@
           year: 'numeric',
           month: 'short',
           day: 'numeric'
-        })}<br>
-        ${now.toLocaleTimeString('en-US', {
+        })} ${now.toLocaleTimeString('en-US', {
           hour: '2-digit',
           minute: '2-digit',
           second: '2-digit'
@@ -294,15 +296,25 @@
     startVoiceButton.addEventListener('click', async () => {
       if (!isRecording) {
         try {
+          // Check if the protocol is HTTPS
+          if (window.location.protocol !== 'https:' && window.location.hostname !== 'localhost') {
+            throw new Error('This app requires HTTPS to access the microphone. Please ensure the site is loaded over HTTPS.');
+          }
+
           stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+          console.log('Microphone access granted:', stream);
           audioChunks = [];
           
           mediaRecorder = new MediaRecorder(stream, {
             mimeType: 'audio/webm;codecs=opus'
           });
           
-          mediaRecorder.ondataavailable = e => audioChunks.push(e.data);
+          mediaRecorder.ondataavailable = e => {
+            console.log('Audio data available:', e.data);
+            audioChunks.push(e.data);
+          };
           mediaRecorder.onstop = async () => {
+            console.log('MediaRecorder stopped, audio chunks:', audioChunks.length);
             const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
             
             transcribingIndicator.style.display = 'block';
@@ -311,6 +323,7 @@
               const formData = new FormData();
               formData.append('audio', audioBlob, 'recording.webm');
               
+              console.log('Sending audio to backend for transcription...');
               const response = await fetch(`${API_URL}/transcribe`, {
                 method: 'POST',
                 body: formData
@@ -321,6 +334,7 @@
               }
               
               const data = await response.json();
+              console.log('Transcription received:', data.transcription);
               
               activityInput.value = data.transcription;
               activityInput.dispatchEvent(new Event('input'));
@@ -332,11 +346,13 @@
               transcribingIndicator.style.display = 'none';
               if (stream) {
                 stream.getTracks().forEach(track => track.stop());
+                console.log('Audio stream stopped');
               }
             }
           };
 
           mediaRecorder.start();
+          console.log('MediaRecorder started');
           isRecording = true;
           startVoiceButton.textContent = 'Stop Voice';
           startVoiceButton.classList.add('recording');
@@ -344,7 +360,19 @@
           startCountdown();
           visualizeAudio(stream);
         } catch (err) {
-          alert('Microphone access required!');
+          console.error('Microphone access error:', err.name, err.message);
+          let errorMessage = 'Microphone access required! ';
+          if (isIOS) {
+            errorMessage += 'Please go to Settings > Safari > Microphone and allow access for synthcalm.com, then reload the page.';
+          } else {
+            errorMessage += 'Please check your browser settings to allow microphone access and reload the page.';
+          }
+          if (err.name === 'NotAllowedError') {
+            errorMessage += ' Permission was denied.';
+          } else if (err.name === 'NotSecureContextError') {
+            errorMessage += ' This feature requires a secure context (HTTPS).';
+          }
+          alert(errorMessage);
         }
       } else {
         mediaRecorder.stop();
@@ -435,6 +463,7 @@
         const style = styleSelect.options[styleSelect.selectedIndex].text;
         const prompt = `${activityInput.value} (${style})`;
         
+        console.log('Sending image generation request:', prompt);
         const response = await fetch(`${API_URL}/generate`, {
           method: 'POST',
           headers: {
@@ -448,6 +477,7 @@
         }
 
         const data = await response.json();
+        console.log('Image generated:', data.image);
         
         addHistoryEntry(prompt);
         
@@ -456,6 +486,7 @@
         generatedImage.style.display = 'block';
         document.getElementById('beepSound').play();
       } catch (error) {
+        console.error('Image generation error:', error);
         alert('Generation error: ' + error.message);
       } finally {
         loading.style.display = 'none';
@@ -504,7 +535,9 @@
       try {
         const response = await fetch(`${API_URL}/health`);
         if (!response.ok) {
-          console.warn('API health check failed. Some features may not work correctly.');
+          console.warn('API health check failed. Some features may not work correctly:', response.statusText);
+        } else {
+          console.log('API health check passed');
         }
       } catch (error) {
         console.error('API connection error:', error);
