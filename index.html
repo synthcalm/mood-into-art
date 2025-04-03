@@ -23,14 +23,14 @@
 
     async function unlockAudioContextAndMic() {
       try {
-        audioContext = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 16000 });
+        audioContext = new (window.AudioContext || window.webkitAudioContext)();
         if (audioContext.state === 'suspended') {
           await audioContext.resume();
         }
+
         mediaStream = await navigator.mediaDevices.getUserMedia({ audio: true });
         return true;
       } catch (e) {
-        console.error("Microphone access failed:", e);
         alert("Microphone access failed: " + e.message);
         return false;
       }
@@ -38,29 +38,23 @@
 
     async function startRecording() {
       try {
-        let token;
-        try {
-          const response = await fetch("https://mood-into-art-backend.onrender.com/assemblyai-token");
-          if (!response.ok) throw new Error(`Token fetch failed: ${response.statusText}`);
-          const data = await response.json();
-          token = data.token;
-          if (!token || typeof token !== 'string') throw new Error("Invalid token received");
-        } catch (fetchError) {
-          console.warn("Fetch failed, using fallback token for debugging:", fetchError.message);
-          token = "YOUR_ASSEMBLYAI_TOKEN_HERE"; // Replace with a valid token for testing
-        }
+        const { token } = await fetch("https://mood-into-art-backend.onrender.com/assemblyai-token")
+          .then(res => res.json());
 
         socket = new WebSocket(`wss://api.assemblyai.com/v2/realtime/ws?sample_rate=16000&token=${token}`);
 
-        socket.onopen = async () => {
-          console.log("✅ WebSocket connection opened");
-          transcribingIndicator.style.display = 'block';
+        socket.onmessage = (msg) => {
+          const data = JSON.parse(msg.data);
+          console.log("📥 AssemblyAI message:", data);
 
-          if (audioContext.state === 'closed') {
-            console.error("AudioContext already closed, aborting setup");
-            stopRecording();
-            return;
+          if (data.text) {
+            console.log("📝 Transcription received:", data.text);
+            activityInput.value = data.text;
           }
+        };
+
+        socket.onopen = async () => {
+          transcribingIndicator.style.display = 'block';
 
           await audioContext.audioWorklet.addModule(URL.createObjectURL(new Blob([`
             class AudioProcessor extends AudioWorkletProcessor {
@@ -98,7 +92,7 @@
                   sum += buffer[j];
                   count++;
                 }
-                result[i] = count > 0 ? sum / count : 0;
+                result[i] = sum / count;
                 offset = nextOffset;
               }
               return result;
@@ -111,31 +105,14 @@
 
           workletNode.port.onmessage = (e) => {
             if (socket.readyState === WebSocket.OPEN) {
-              const audioData = e.data;
-              const base64Audio = btoa(String.fromCharCode(...new Uint8Array(audioData)));
-              socket.send(JSON.stringify({ audio_data: base64Audio }));
+              const base64Audio = btoa(String.fromCharCode(...new Uint8Array(e.data)));
+              socket.send(base64Audio);
               console.log("📤 Sent audio chunk (base64):", base64Audio.slice(0, 50) + "...");
             }
           };
 
           source.connect(workletNode);
           workletNode.connect(audioContext.destination);
-        };
-
-        socket.onmessage = (msg) => {
-          const data = JSON.parse(msg.data);
-          console.log("📥 AssemblyAI message:", data);
-          if (data.error) {
-            console.error("AssemblyAI error:", data.error);
-            alert("AssemblyAI error: " + data.error);
-            stopRecording();
-          } else if (data.message_type === "FinalTranscript" && data.text) {
-            console.log("📝 Final transcription:", data.text);
-            activityInput.value = data.text;
-          } else if (data.message_type === "PartialTranscript" && data.text) {
-            console.log("📝 Partial transcription:", data.text);
-            activityInput.value = data.text; // Optional: show partial results
-          }
         };
 
         socket.onclose = () => {
@@ -148,21 +125,16 @@
         };
 
       } catch (e) {
-        console.error("Failed to start recording:", e);
         alert("Failed to start recording: " + e.message);
-        stopRecording();
       }
     }
 
     function stopRecording() {
       try {
-        if (socket && socket.readyState !== WebSocket.CLOSED) socket.close();
+        if (socket && socket.readyState === WebSocket.OPEN) socket.close();
         if (audioContext && audioContext.state !== 'closed') audioContext.close();
         if (mediaStream) mediaStream.getTracks().forEach(track => track.stop());
-        if (workletNode) workletNode.disconnect();
         transcribingIndicator.style.display = 'none';
-        isRecording = false;
-        startVoiceButton.textContent = "Start Voice";
         console.log("🛑 Recording stopped");
       } catch (err) {
         console.warn("⚠️ Error during cleanup:", err.message);
@@ -173,6 +145,7 @@
       if (!isRecording) {
         isRecording = true;
         startVoiceButton.textContent = "Stop Voice";
+
         const unlocked = await unlockAudioContextAndMic();
         if (unlocked) {
           await startRecording();
@@ -180,7 +153,10 @@
           isRecording = false;
           startVoiceButton.textContent = "Start Voice";
         }
+
       } else {
+        isRecording = false;
+        startVoiceButton.textContent = "Start Voice";
         stopRecording();
       }
     });
