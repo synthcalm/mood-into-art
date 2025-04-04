@@ -1,120 +1,190 @@
+// Check for SpeechRecognition API support
+const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+let recognition = null;
 let isRecording = false;
-let socket;
-let audioContext;
-let mediaRecorder;
 
-// Voice Recording Functions
-async function startVoiceRecording() {
-  try {
-    // Get AssemblyAI token
-    const tokenResponse = await fetch('/assemblyai-token');
-    const { token } = await tokenResponse.json();
-    
-    // Initialize WebSocket
-    socket = new WebSocket(`wss://api.assemblyai.com/v2/realtime/ws?token=${token}`);
-    
-    // Set up microphone
-    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-    audioContext = new AudioContext();
-    const microphone = audioContext.createMediaStreamSource(stream);
-    
-    // Audio processor setup
-    const processor = audioContext.createScriptProcessor(4096, 1, 1);
-    microphone.connect(processor);
-    processor.connect(audioContext.destination);
-    
-    processor.onaudioprocess = (e) => {
-      const audioData = e.inputBuffer.getChannelData(0);
-      const int16Array = floatTo16BitPCM(audioData);
-      const base64String = arrayBufferToBase64(int16Array.buffer);
-      
-      if (socket.readyState === WebSocket.OPEN) {
-        socket.send(JSON.stringify({ audio_data: base64String }));
-      }
-    };
+if (SpeechRecognition) {
+  recognition = new SpeechRecognition();
+  recognition.continuous = true; // Continuous listening
+  recognition.interimResults = true; // Show interim results
+  recognition.lang = 'en-US'; // Set language
 
-    // WebSocket handlers
-    socket.onmessage = (message) => {
-      const data = JSON.parse(message.data);
-      if (data.text) {
-        document.getElementById('activityInput').value += data.text + ' ';
-      }
-    };
+  // Handle transcription results
+  recognition.onresult = (event) => {
+    const transcript = Array.from(event.results)
+      .map(result => result[0].transcript)
+      .join('');
+    document.getElementById('activityInput').value = transcript;
+  };
 
-    socket.onopen = () => {
-      isRecording = true;
-      document.getElementById('startVoice').textContent = 'Stop Voice';
-    };
+  recognition.onerror = (event) => {
+    console.error('Speech recognition error:', event.error);
+    alert(`Speech recognition error: ${event.error}`);
+    stopRecording();
+  };
 
-    socket.onclose = () => {
-      isRecording = false;
-      document.getElementById('startVoice').textContent = 'Start Voice';
-    };
-
-  } catch (error) {
-    console.error('Error:', error);
-    alert('Error accessing microphone. Please check permissions.');
-  }
+  recognition.onend = () => {
+    if (isRecording) {
+      recognition.start(); // Restart if still recording
+    }
+  };
+} else {
+  alert('Speech recognition not supported in this browser.');
 }
 
-function stopVoiceRecording() {
-  if (socket) socket.close();
-  if (audioContext) audioContext.close();
+// Waveform visualization setup
+const canvas = document.getElementById('waveform');
+const ctx = canvas.getContext('2d');
+let audioContext, analyser, dataArray, source;
+
+function setupWaveform() {
+  audioContext = new (window.AudioContext || window.webkitAudioContext)();
+  analyser = audioContext.createAnalyser();
+  analyser.fftSize = 2048;
+  dataArray = new Uint8Array(analyser.frequencyBinCount);
+
+  navigator.mediaDevices.getUserMedia({ audio: true })
+    .then(stream => {
+      source = audioContext.createMediaStreamSource(stream);
+      source.connect(analyser);
+      drawWaveform();
+    })
+    .catch(err => {
+      console.error('Microphone access error:', err);
+      alert('Failed to access microphone. Please ensure permissions are granted.');
+    });
+}
+
+function drawWaveform() {
+  if (!isRecording) return;
+
+  requestAnimationFrame(drawWaveform);
+  analyser.getByteTimeDomainData(dataArray);
+
+  ctx.fillStyle = '#000';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.lineWidth = 2;
+  ctx.strokeStyle = '#ff0'; // Yellow waveform
+  ctx.beginPath();
+
+  const sliceWidth = canvas.width / dataArray.length;
+  let x = 0;
+
+  for (let i = 0; i < dataArray.length; i++) {
+    const v = dataArray[i] / 128.0;
+    const y = (v * canvas.height) / 2;
+
+    if (i === 0) {
+      ctx.moveTo(x, y);
+    } else {
+      ctx.lineTo(x, y);
+    }
+
+    x += sliceWidth;
+  }
+
+  ctx.lineTo(canvas.width, canvas.height / 2);
+  ctx.stroke();
+}
+
+function startRecording() {
+  if (!recognition) return;
+  isRecording = true;
+  document.getElementById('startVoice').textContent = 'Stop Voice';
+  recognition.start();
+  setupWaveform();
+}
+
+function stopRecording() {
   isRecording = false;
   document.getElementById('startVoice').textContent = 'Start Voice';
+  if (recognition) recognition.stop();
+  if (audioContext) audioContext.close();
+  ctx.clearRect(0, 0, canvas.width, canvas.height); // Clear waveform
 }
 
-// Audio conversion helpers
-function floatTo16BitPCM(input) {
-  const output = new Int16Array(input.length);
-  for (let i = 0; i < input.length; i++) {
-    const s = Math.max(-1, Math.min(1, input[i]));
-    output[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
-  }
-  return output;
-}
-
-function arrayBufferToBase64(buffer) {
-  let binary = '';
-  const bytes = new Uint8Array(buffer);
-  for (let i = 0; i < bytes.byteLength; i++) {
-    binary += String.fromCharCode(bytes[i]);
-  }
-  return btoa(binary);
-}
-
-// Event Listeners
+// Start/Stop voice recording
 document.getElementById('startVoice').addEventListener('click', () => {
-  if (isRecording) {
-    stopVoiceRecording();
+  if (!isRecording) {
+    navigator.permissions.query({ name: 'microphone' })
+      .then(permissionStatus => {
+        if (permissionStatus.state === 'granted') {
+          startRecording();
+        } else if (permissionStatus.state === 'prompt') {
+          navigator.mediaDevices.getUserMedia({ audio: true })
+            .then(() => startRecording())
+            .catch(err => alert('Microphone access denied.'));
+        } else {
+          alert('Microphone access denied. Please enable it in your browser settings.');
+        }
+      });
   } else {
-    startVoiceRecording();
+    stopRecording();
   }
 });
 
+// Redo functionality
 document.getElementById('redo').addEventListener('click', () => {
-  stopVoiceRecording();
+  stopRecording();
   document.getElementById('activityInput').value = '';
   document.getElementById('styleSelect').value = 'none';
   document.getElementById('generatedImage').style.display = 'none';
 });
 
-// Keep the rest of your existing code for generate/save/image handling
-document.getElementById('generate').addEventListener('click', () => {
+// Generate image
+document.getElementById('generate').addEventListener('click', async () => {
   const mood = document.getElementById('activityInput').value;
   const style = document.getElementById('styleSelect').value;
   if (mood && style !== 'none') {
-    document.getElementById('generatedImage').src = 'https://via.placeholder.com/500x500.png?text=Generated+Image';
-    document.getElementById('generatedImage').style.display = 'block';
-    const history = document.getElementById('moodHistory');
-    const entry = document.createElement('div');
-    entry.textContent = `${new Date().toLocaleString()} — ${mood} [${style}]`;
-    history.prepend(entry);
+    try {
+      const response = await fetch('/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ prompt: `${mood} in ${style} style` }),
+      });
+      const data = await response.json();
+      if (data.image) {
+        document.getElementById('generatedImage').src = `data:image/png;base64,${data.image}`;
+        document.getElementById('generatedImage').style.display = 'block';
+
+        // Log mood history
+        const history = document.getElementById('moodHistory');
+        const entry = document.createElement('div');
+        entry.style.display = 'flex';
+        entry.style.justifyContent = 'space-between';
+        entry.style.alignItems = 'center';
+        entry.style.marginBottom = '5px';
+
+        const text = document.createElement('span');
+        text.textContent = `${new Date().toLocaleString()} — ${mood} [${style}]`;
+        entry.appendChild(text);
+
+        const deleteBtn = document.createElement('button');
+        deleteBtn.textContent = 'Delete';
+        deleteBtn.style.background = '#000';
+        deleteBtn.style.color = '#0ff';
+        deleteBtn.style.border = '1px solid #0ff';
+        deleteBtn.style.padding = '2px 5px';
+        deleteBtn.style.cursor = 'pointer';
+        deleteBtn.addEventListener('click', () => {
+          history.removeChild(entry);
+        });
+        entry.appendChild(deleteBtn);
+
+        history.prepend(entry);
+      } else {
+        alert('Failed to generate image.');
+      }
+    } catch (error) {
+      console.error('Error generating image:', error);
+      alert('Error generating image. Please try again.');
+    }
   } else {
     alert('Please enter a mood and choose a style.');
   }
 });
 
+// Save image
 document.getElementById('saveImage').addEventListener('click', () => {
   const image = document.getElementById('generatedImage');
   if (image.src) {
@@ -125,6 +195,7 @@ document.getElementById('saveImage').addEventListener('click', () => {
   }
 });
 
+// Update date and time
 setInterval(() => {
   const now = new Date();
   document.getElementById('dateTimeDisplay').textContent =
