@@ -2,6 +2,7 @@
 // ✅ Deepgram on iOS (Safari)
 // ✅ AssemblyAI on other platforms
 // ✅ Displays waveform, countdown, transcription, and animated thinking dots
+// ✅ Auto-generates image when recording stops
 
 const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
 if (isIOS && window.top !== window.self) {
@@ -156,12 +157,20 @@ function stopRecording() {
   document.getElementById('countdownDisplay').textContent = `00:${countdown}`;
   ctx.clearRect(0, 0, canvas.width, canvas.height);
   stopThinkingAnimation();
+  triggerImageGeneration();
 }
 
 function updateCountdown() {
   countdown--;
   document.getElementById('countdownDisplay').textContent = `00:${countdown.toString().padStart(2, '0')}`;
   if (countdown <= 0) stopRecording();
+}
+
+function triggerImageGeneration() {
+  const mood = document.getElementById('activityInput').value;
+  const style = document.getElementById('styleSelect').value;
+  if (!mood || style === 'none') return;
+  document.getElementById('generate').click();
 }
 
 document.getElementById('startVoice').addEventListener('click', () => {
