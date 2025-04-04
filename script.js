@@ -94,7 +94,7 @@ function drawWaveform() {
 // AssemblyAI Fallback for Transcription
 async function setupAssemblyAI() {
   try {
-    const response = await fetch('/assemblyai-token');
+    const response = await fetch('https://your-backend.onrender.com/assemblyai-token'); // Replace with your actual backend URL
     if (!response.ok) throw new Error('Failed to fetch AssemblyAI token');
     const { token } = await response.json();
 
@@ -201,7 +201,11 @@ function stopRecording() {
   document.getElementById('startVoice').textContent = 'Start Voice';
   if (recognition) recognition.stop();
   if (socket) socket.close();
-  if (audioContext) audioContext.close();
+  if (audioContext && audioContext.state !== 'closed') {
+    audioContext.close().then(() => {
+      audioContext = null; // Reset audioContext after closing
+    });
+  }
   if (countdownInterval) clearInterval(countdownInterval);
   countdown = 60;
   document.getElementById('countdownDisplay').textContent = `00:${countdown.toString().padStart(2, '0')}`;
@@ -231,70 +235,4 @@ document.getElementById('generate').addEventListener('click', async () => {
   const style = document.getElementById('styleSelect').value;
   if (mood && style !== 'none') {
     try {
-      const response = await fetch('/generate', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ prompt: `${mood} in ${style} style` }),
-      });
-      if (!response.ok) throw new Error('Failed to generate image');
-      const data = await response.json();
-      if (data.image) {
-        document.getElementById('generatedImage').src = `data:image/png;base64,${data.image}`;
-        document.getElementById('generatedImage').style.display = 'block';
-
-        // Log mood history
-        const history = document.getElementById('moodHistory');
-        const entry = document.createElement('div');
-        entry.style.display = 'flex';
-        entry.style.justifyContent = 'space-between';
-        entry.style.alignItems = 'center';
-        entry.style.marginBottom = '5px';
-
-        const text = document.createElement('span');
-        text.textContent = `${new Date().toLocaleString()} — ${mood} [${style}]`;
-        entry.appendChild(text);
-
-        const deleteBtn = document.createElement('button');
-        deleteBtn.textContent = 'Delete';
-        deleteBtn.style.background = '#000';
-        deleteBtn.style.color = '#0ff';
-        deleteBtn.style.border = '1px solid #0ff';
-        deleteBtn.style.padding = '2px 5px';
-        deleteBtn.style.cursor = 'pointer';
-        deleteBtn.addEventListener('click', () => {
-          history.removeChild(entry);
-        });
-        entry.appendChild(deleteBtn);
-
-        history.prepend(entry);
-      } else {
-        alert('Failed to generate image.');
-      }
-    } catch (error) {
-      console.error('Error generating image:', error);
-      alert('Error generating image. Please try again.');
-    }
-  } else {
-    alert('Please enter a mood and choose a style.');
-  }
-});
-
-// Save image
-document.getElementById('saveImage').addEventListener('click', () => {
-  const image = document.getElementById('generatedImage');
-  if (image.src) {
-    const a = document.createElement('a');
-    a.href = image.src;
-    a.download = 'mood-art.png';
-    a.click();
-  } else {
-    alert('No image to save. Please generate an image first.');
-  }
-});
-
-// Update date and time
-setInterval(() => {
-  const now = new Date();
-  document.getElementById('dateTimeDisplay').textContent =
-    now.toLocaleDateString('en-US') + '\n' + now.toLocaleTimeString('en-US');
-}, 1000);
+      const response = await fetch('https://your-backend.onrender.com/generate
