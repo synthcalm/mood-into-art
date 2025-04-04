@@ -1,95 +1,89 @@
 
-// Voice recording and waveform visualization setup
-let mediaRecorder;
-let audioChunks = [];
+let audioContext, processor, input, globalStream;
+let socket;
 let isRecording = false;
 let countdownInterval;
+const MAX_RECORD_TIME = 60;
 
-document.addEventListener("DOMContentLoaded", () => {
-  const startVoiceButton = document.getElementById('startVoice');
-  const redoButton = document.getElementById('redo');
-  const generateButton = document.getElementById('generate');
-  const saveImageButton = document.getElementById('saveImage');
-  const activityInput = document.getElementById('activityInput');
-  const styleSelect = document.getElementById('styleSelect');
-  const generatedImage = document.getElementById('generatedImage');
-  const countdownDisplay = document.getElementById('countdownDisplay');
+const startButton = document.getElementById('startVoice');
+const activityInput = document.getElementById('activityInput');
+const countdownDisplay = document.getElementById('countdownDisplay');
+const waveform = document.getElementById('waveform');
+const waveformCtx = waveform.getContext('2d');
 
-  startVoiceButton.addEventListener('click', async () => {
-    if (!isRecording) {
-      try {
-        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-        mediaRecorder = new MediaRecorder(stream);
-        audioChunks = [];
+startButton.addEventListener('click', async () => {
+  if (!isRecording) {
+    const tokenRes = await fetch('https://mood-into-art-backend.onrender.com/assemblyai-token');
+    const { token } = await tokenRes.json();
 
-        mediaRecorder.ondataavailable = e => audioChunks.push(e.data);
-        mediaRecorder.onstop = () => {
-          const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
-          // You can upload this blob to your backend for transcription
-          console.log('Audio recorded. Ready to send to transcription service.');
-        };
-
-        mediaRecorder.start();
-        isRecording = true;
-        startVoiceButton.textContent = 'Stop Voice';
-        startCountdown();
-
-      } catch (err) {
-        alert('Microphone access denied.');
-        console.error(err);
+    socket = new WebSocket(`wss://api.assemblyai.com/v2/realtime/ws?sample_rate=16000`, []);
+    socket.onopen = () => console.log('WebSocket connected');
+    socket.onmessage = (message) => {
+      const res = JSON.parse(message.data);
+      if (res.text && res.message_type === "FinalTranscript") {
+        activityInput.value = res.text;
       }
-    } else {
-      mediaRecorder.stop();
-      isRecording = false;
-      startVoiceButton.textContent = 'Start Voice';
-      clearInterval(countdownInterval);
-      countdownDisplay.textContent = '00:60';
-    }
-  });
+    };
 
-  redoButton.addEventListener('click', () => {
-    activityInput.value = '';
-    styleSelect.value = 'none';
-    generatedImage.style.display = 'none';
-  });
+    audioContext = new (window.AudioContext || window.webkitAudioContext)();
+    globalStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    input = audioContext.createMediaStreamSource(globalStream);
+    processor = audioContext.createScriptProcessor(4096, 1, 1);
 
-  generateButton.addEventListener('click', () => {
-    const mood = activityInput.value;
-    const style = styleSelect.value;
-    if (mood && style !== 'none') {
-      generatedImage.src = 'https://via.placeholder.com/1080x1080.png?text=Generated+Image';
-      generatedImage.style.display = 'block';
-    } else {
-      alert('Please enter a mood and choose a style.');
-    }
-  });
-
-  saveImageButton.addEventListener('click', () => {
-    const image = generatedImage;
-    if (image.src && image.style.display !== 'none') {
-      const a = document.createElement('a');
-      a.href = image.src;
-      a.download = 'mood-art.png';
-      a.click();
-    }
-  });
-
-  function startCountdown() {
-    let seconds = 60;
-    countdownDisplay.textContent = '01:00';
-    countdownInterval = setInterval(() => {
-      seconds--;
-      const min = String(Math.floor(seconds / 60)).padStart(2, '0');
-      const sec = String(seconds % 60).padStart(2, '0');
-      countdownDisplay.textContent = `${min}:${sec}`;
-      if (seconds <= 0) {
-        clearInterval(countdownInterval);
-        if (isRecording && mediaRecorder) {
-          mediaRecorder.stop();
-          isRecording = false;
-          startVoiceButton.textContent = 'Start Voice';
-        }
+    const sampleRate = 16000;
+    processor.onaudioprocess = (e) => {
+      const inputData = e.inputBuffer.getChannelData(0);
+      const downsampledBuffer = downsampleBuffer(inputData, audioContext.sampleRate, sampleRate);
+      const int16Array = convertFloat32ToInt16(downsampledBuffer);
+      if (socket.readyState === WebSocket.OPEN) {
+        socket.send(int16Array);
       }
-    }, 1000);
+    };
+
+    input.connect(processor);
+    processor.connect(audioContext.destination);
+
+    isRecording = true;
+    startButton.textContent = "Stop Voice";
+    startCountdown();
+  } else {
+    socket?.close();
+    processor?.disconnect();
+    input?.disconnect();
+    globalStream?.getTracks().forEach(track => track.stop());
+    audioContext?.close();
+
+    isRecording = false;
+    startButton.textContent = "Start Voice";
+    clearInterval(countdownInterval);
   }
 });
+
+function downsampleBuffer(buffer, sampleRate, outSampleRate) {
+  const ratio = sampleRate / outSampleRate;
+  const newLength = Math.round(buffer.length / ratio);
+  const result = new Float32Array(newLength);
+  for (let i = 0; i < newLength; i++) {
+    result[i] = buffer[Math.round(i * ratio)];
+  }
+  return result;
+}
+
+function convertFloat32ToInt16(buffer) {
+  let l = buffer.length;
+  const result = new Int16Array(l);
+  for (let i = 0; i < l; i++) {
+    result[i] = Math.min(1, buffer[i]) * 0x7FFF;
+  }
+  return result;
+}
+
+function startCountdown() {
+  let seconds = MAX_RECORD_TIME;
+  countdownInterval = setInterval(() => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    countdownDisplay.textContent = \`\${String(mins).padStart(2, '0')}:\${String(secs).padStart(2, '0')}\`;
+    if (--seconds < 0) clearInterval(countdownInterval);
+  }, 1000);
+}
