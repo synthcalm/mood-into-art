@@ -1,0 +1,113 @@
+body {
+  font-family: 'Courier New', Courier, monospace;
+  background: black;
+  color: #00FFFF;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 100vh;
+  margin: 0;
+}
+
+.container {
+  width: 95%;
+  max-width: 500px;
+  padding: 20px;
+  border: 2px solid #00FFFF;
+  background-color: rgba(0, 0, 0, 0.95);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+canvas#waveform {
+  width: 100%;
+  height: 160px;
+  background-color: black;
+  border: 1px solid #00FFFF;
+  background-image:
+    linear-gradient(to right, rgba(0, 255, 255, 0.2) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(0, 255, 255, 0.2) 1px, transparent 1px);
+  background-size: 20px 20px;
+  margin-bottom: 10px;
+}
+
+.footer-bar {
+  width: 100%;
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.8em;
+  margin-bottom: 10px;
+}
+
+textarea, select {
+  width: 100%;
+  padding: 10px;
+  background: black;
+  border: 2px solid #00FFFF;
+  color: #00FFFF;
+  margin-bottom: 10px;
+  resize: vertical;
+}
+
+.button-group {
+  width: 100%;
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 10px;
+}
+
+.button {
+  background: black;
+  border: 2px solid #00FFFF;
+  color: #00FFFF;
+  padding: 10px;
+  cursor: pointer;
+  text-align: center;
+  transition: 0.3s;
+}
+
+.button:hover {
+  background: #00FFFF;
+  color: black;
+}
+
+.dot-alert {
+  width: 10px;
+  height: 10px;
+  background: red;
+  border-radius: 50%;
+  animation: blink 1s infinite;
+  display: none;
+  margin-bottom: 10px;
+}
+
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+
+#loadingIndicator {
+  display: none;
+  justify-content: center;
+  gap: 4px;
+  margin-top: 10px;
+}
+
+.dot {
+  width: 4px;
+  height: 4px;
+  background-color: #00FFFF;
+  border-radius: 50%;
+  opacity: 0;
+  animation: blink 1.6s infinite;
+}
+
+.dot:nth-child(2) { animation-delay: 0.4s; }
+.dot:nth-child(3) { animation-delay: 0.8s; }
+.dot:nth-child(4) { animation-delay: 1.2s; }
+
+#moodHistory {
+  width: 100%;
+  margin-top: 20px;
+}
