@@ -9,6 +9,7 @@
 <body>
   <div class="container">
     <canvas id="waveform"></canvas>
+
     <div class="footer-bar">
       <div id="dateTimeDisplay" class="seven-segment"></div>
       <div id="countdownDisplay" class="seven-segment">00:60</div>
@@ -45,8 +46,8 @@
     <!-- ⏳ Animated thinking dots -->
     <div id="thinking" style="display: none;">Generating ⠄</div>
 
-    <!-- 🖼️ Generated image container -->
-    <div class="image-container">
+    <!-- 🖼️ Generated image container (now uses .image-frame) -->
+    <div class="image-frame">
       <img id="generatedImage" />
     </div>
 
