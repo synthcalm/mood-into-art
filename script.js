@@ -221,8 +221,10 @@ document.getElementById('generate').addEventListener('click', async () => {
         body: JSON.stringify({ prompt: `${mood} in ${style} style` }),
       });
 
-      if (!res.ok) throw new Error('Failed to generate image');
+      if (!res.ok) throw new Error(`Failed to generate image — ${res.status}`);
       const data = await res.json();
+
+      console.log("📦 Backend response data:", data);
 
       if (data.image) {
         console.log("✅ Image received");
@@ -250,11 +252,12 @@ document.getElementById('generate').addEventListener('click', async () => {
 
         history.prepend(entry);
       } else {
+        console.warn('⚠️ No image returned from backend.');
         alert('No image returned from backend.');
       }
     } catch (err) {
       console.error('❌ Generate error:', err);
-      alert('Something went wrong. Try again.');
+      alert('Something went wrong. Please try again.');
     }
   } else {
     alert('Please enter a mood and select a style.');
