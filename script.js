@@ -14,6 +14,7 @@ let socket = null;
 let countdown = 60;
 let countdownInterval = null;
 let thinkingInterval = null;
+let recorder = null;
 
 const canvas = document.getElementById('waveform');
 const ctx = canvas.getContext('2d');
@@ -103,9 +104,11 @@ async function setupTranscription() {
 
     socket.onopen = () => {
       navigator.mediaDevices.getUserMedia({ audio: true }).then(stream => {
-        const recorder = new MediaRecorder(stream);
+        recorder = new MediaRecorder(stream);
         recorder.ondataavailable = e => {
-          if (socket.readyState === WebSocket.OPEN) socket.send(e.data);
+          if (socket && socket.readyState === WebSocket.OPEN) {
+            socket.send(e.data);
+          }
         };
         recorder.start(250);
       });
@@ -150,6 +153,7 @@ function startRecording() {
 function stopRecording() {
   isRecording = false;
   document.getElementById('startVoice').textContent = 'Start Voice';
+  if (recorder && recorder.state !== 'inactive') recorder.stop();
   if (socket) socket.close();
   if (audioContext) audioContext.close();
   clearInterval(countdownInterval);
