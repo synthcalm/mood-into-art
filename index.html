@@ -13,7 +13,7 @@
       <div id="dateTimeDisplay" class="seven-segment"></div>
       <div id="countdownDisplay" class="seven-segment">00:60</div>
     </div>
-    <textarea id="activityInput" rows="4" placeholder="Describe your mood..."></textarea>
+    <textarea id="activityInput" rows="4" placeholder="Describe your mood... (editable after recording)"></textarea>
     <select id="styleSelect">
       <option value="none" selected disabled>Choose Style</option>
       <option value="photo">Hyper-realistic Photo</option>
@@ -29,17 +29,18 @@
       <option value="art-deco">Art Deco</option>
       <option value="impressionist">Impressionist</option>
       <option value="pop-art">Pop Art</option>
-      <option value="digital-painting">Digital Painting</option>
+      <option value="digital
+
+-painting">Digital Painting</option>
       <option value="minimalism">Minimalism</option>
     </select>
     <div class="button-group">
       <button class="button" id="startVoice">Start Voice</button>
-      <button class="button" id="stopVoice">Stop Voice</button>
       <button class="button" id="redo">Redo</button>
       <button class="button" id="generate">Generate Image</button>
       <button class="button" id="saveImage">Save</button>
     </div>
-    <img id="generatedImage" style="display: none;" />
+    <img id="generatedImage"/>
     <div id="moodHistory"></div>
   </div>
   <script src="script.js"></script>
