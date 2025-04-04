@@ -204,8 +204,14 @@ document.getElementById('redo').addEventListener('click', () => {
   stopRecording();
   document.getElementById('activityInput').value = '';
   document.getElementById('styleSelect').value = 'none';
-  document.getElementById('generatedImage').style.display = 'none';
+
+  const image = document.getElementById('generatedImage');
+  image.src = '';                             // ✅ Clear image content
+  image.style.display = 'none';              // ✅ Hide the image
+
+  ctx.clearRect(0, 0, canvas.width, canvas.height); // ✅ Optional: clear waveform canvas
 });
+
 
 // === Generate Image ===
 document.getElementById('generate').addEventListener('click', async () => {
