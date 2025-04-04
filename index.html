@@ -1,60 +1,45 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>MIA</title>
-  <link rel="stylesheet" href="style.css" />
+  <link rel="stylesheet" href="style.css">
 </head>
 <body>
+  <div id="initOverlay">Initializing audio system...<br>Click anywhere to start</div>
+
   <div class="container">
     <canvas id="waveform"></canvas>
-
+    
     <div class="footer-bar">
-      <div id="dateTimeDisplay"></div>
+      <div id="dateTimeDisplay">2025 Apr 04<br>03:14:05</div>
       <div id="countdownDisplay">00:60</div>
     </div>
 
     <div class="dot-alert" id="redDot"></div>
-
     <textarea id="activityInput" rows="4" placeholder="Describe your mood..."></textarea>
-
+    
     <select id="styleSelect">
       <option value="none" disabled selected>Choose Style</option>
-      <option value="photo">Hyper-realistic Photo</option>
-      <option value="anime">Japanese Anime Style</option>
-      <option value="abstract">Abstract</option>
-      <option value="surrealism">Surrealism</option>
+      <option value="cinematic">Cinematic</option>
       <option value="cyberpunk">Cyberpunk</option>
-      <option value="minimalism">Minimalism</option>
     </select>
 
     <div class="button-group">
       <button class="button" id="startVoice">Start Voice</button>
-      <button class="button" id="generate">Generate Art</button>
+      <button class="button" id="generate">Generate Image</button>
     </div>
 
-    <div id="loadingIndicator">
-      <div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div>
+    <div id="loadingIndicator" class="loading-indicator">
+      <div class="dot"></div><div class="dot"></div><div class="dot"></div>
     </div>
 
-    <img id="generatedImage" style="display:none" />
-    <div id="moodHistory"><h3>Mood History</h3></div>
+    <img id="generatedImage" />
+    <div id="moodHistory"></div>
   </div>
 
-  <script>
-    // Update Date & Time
-    function updateDateTime() {
-      const now = new Date();
-      document.getElementById('dateTimeDisplay').innerHTML = 
-        now.toLocaleDateString('en-GB', { year: 'numeric', month: 'short', day: 'numeric' }) + '<br>' +
-        now.toLocaleTimeString('en-GB');
-    }
-    setInterval(updateDateTime, 1000);
-    updateDateTime();
-
-    // Static countdown for now
-    document.getElementById('countdownDisplay').textContent = "00:60";
-  </script>
+  <script src="script.js"></script>
 </body>
 </html>
