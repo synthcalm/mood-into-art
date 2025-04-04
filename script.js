@@ -77,7 +77,14 @@ document.getElementById('redo').addEventListener('click', () => {
   clearInterval(countdown);
   document.getElementById('countdownDisplay').textContent = '00:60';
 });
-
+// Stop Voice button: Clean up audio and WebSocket
+document.getElementById('stopVoice').addEventListener('click', () => {
+  if (socket) socket.close();
+  if (audioContext) audioContext.close();
+  if (stream) stream.getTracks().forEach(track => track.stop());
+  clearInterval(countdown);
+  document.getElementById('countdownDisplay').textContent = '00:60';
+});
 // Generate button: Fetch image from backend
 document.getElementById('generate').addEventListener('click', async () => {
   const mood = document.getElementById('activityInput').value;
