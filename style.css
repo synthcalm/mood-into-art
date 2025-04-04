@@ -8,6 +8,7 @@ body {
   justify-content: center;
   align-items: center;
   min-height: 100vh;
+  overflow: auto;
 }
 .container {
   width: 90%;
@@ -31,6 +32,7 @@ canvas#waveform {
   justify-content: space-between;
   font-size: 14px;
   margin: 10px 0;
+  font-family: 'Courier New', monospace;
 }
 textarea, select, .button {
   width: 100%;
@@ -62,6 +64,6 @@ textarea, select, .button {
   animation: blink 1.5s infinite;
 }
 @keyframes blink {
-  0%, 100% {{ opacity: 1; }}
-  50% {{ opacity: 0; }}
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
 }
