@@ -1,7 +1,7 @@
-// === iOS-Ready Version: Mood Into Art ===
-// ✅ Uses AssemblyAI only (no SpeechRecognition)
-// ✅ Works on desktop and iOS Safari
-// ✅ Displays waveform + countdown + transcription
+// === iOS-Ready Version: Mood Into Art with Deepgram + AssemblyAI ===
+// ✅ Deepgram on iOS (Safari)
+// ✅ AssemblyAI on other platforms
+// ✅ Displays waveform, countdown, transcription
 
 const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
 if (isIOS && window.top !== window.self) {
@@ -62,43 +62,48 @@ function drawWaveform() {
   ctx.stroke();
 }
 
-function setupAssemblyAI() {
-  fetch('https://mood-into-art-backend.onrender.com/assemblyai-token')
-    .then(res => res.json())
-    .then(({ token }) => {
-      socket = new WebSocket(`wss://api.assemblyai.com/v2/realtime/ws?token=${token}`);
+async function setupTranscription() {
+  const endpoint = isIOS ? '/deepgram-token' : '/assemblyai-token';
+  try {
+    const res = await fetch(endpoint);
+    if (!res.ok) throw new Error('Token request failed');
+    const { token } = await res.json();
 
-      socket.onopen = () => {
-        navigator.mediaDevices.getUserMedia({ audio: true }).then(stream => {
-          const recorder = new MediaRecorder(stream);
-          recorder.ondataavailable = e => {
-            if (socket.readyState === WebSocket.OPEN) {
-              socket.send(e.data);
-            }
-          };
-          recorder.start(250);
-        });
-      };
+    socket = new WebSocket(
+      isIOS
+        ? `wss://api.deepgram.com/v1/listen?access_token=${token}`
+        : `wss://api.assemblyai.com/v2/realtime/ws?token=${token}`
+    );
 
-      socket.onmessage = msg => {
-        const data = JSON.parse(msg.data);
-        if (data.text) {
-          document.getElementById('activityInput').value = data.text;
-        }
-      };
+    socket.onopen = () => {
+      navigator.mediaDevices.getUserMedia({ audio: true }).then(stream => {
+        const recorder = new MediaRecorder(stream);
+        recorder.ondataavailable = e => {
+          if (socket.readyState === WebSocket.OPEN) socket.send(e.data);
+        };
+        recorder.start(250);
+      });
+    };
 
-      socket.onerror = err => {
-        console.error('AssemblyAI error:', err);
-        stopRecording();
-      };
+    socket.onmessage = e => {
+      const data = JSON.parse(e.data);
+      const text = isIOS
+        ? data.channel?.alternatives?.[0]?.transcript
+        : data.text;
+      if (text) document.getElementById('activityInput').value = text;
+    };
 
-      socket.onclose = () => socket = null;
-    })
-    .catch(err => {
-      console.error('Token fetch failed:', err);
-      alert('AssemblyAI setup failed.');
+    socket.onerror = err => {
+      console.error('WebSocket error:', err);
       stopRecording();
-    });
+    };
+    socket.onclose = () => socket = null;
+
+  } catch (err) {
+    console.error('Transcription setup error:', err);
+    alert('Failed to setup transcription');
+    stopRecording();
+  }
 }
 
 function startRecording() {
@@ -109,12 +114,10 @@ function startRecording() {
       countdown = 60;
       document.getElementById('countdownDisplay').textContent = `00:${countdown}`;
       countdownInterval = setInterval(updateCountdown, 1000);
-      setupAssemblyAI();
+      setupTranscription();
       setupWaveform();
     })
-    .catch(err => {
-      alert('Microphone access denied.');
-    });
+    .catch(() => alert('Microphone access denied.'));
 }
 
 function stopRecording() {
