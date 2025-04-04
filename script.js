@@ -231,7 +231,8 @@ document.getElementById('generate').addEventListener('click', async () => {
   const style = document.getElementById('styleSelect').value;
   if (mood && style !== 'none') {
     try {
-      const response = await fetch('/generate', {
+      const response = await fetch('https://mood-into-art-backend.onrender.com/generate', {
+
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ prompt: `${mood} in ${style} style` }),
