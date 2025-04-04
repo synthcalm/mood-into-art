@@ -64,7 +64,6 @@ function setupWaveform() {
 
 function drawWaveform() {
   if (!isRecording) return;
-  console.log("📈 Drawing waveform...");
   requestAnimationFrame(drawWaveform);
   analyser.getByteTimeDomainData(dataArray);
 
@@ -147,7 +146,6 @@ function startRecording() {
       beginVoiceCapture();
     } else if (permission.state === 'prompt') {
       navigator.mediaDevices.getUserMedia({ audio: true }).then(() => {
-        console.log("🔓 Mic allowed after prompt");
         beginVoiceCapture();
       }).catch(err => {
         console.error('❌ Mic denied:', err);
@@ -167,10 +165,8 @@ function beginVoiceCapture() {
   countdownInterval = setInterval(updateCountdown, 1000);
 
   if (recognition) {
-    console.log("🔊 Starting browser recognition...");
     recognition.start();
   } else {
-    console.log("🛰️ Using AssemblyAI...");
     setupAssemblyAI();
   }
 
@@ -206,20 +202,31 @@ document.getElementById('redo').addEventListener('click', () => {
   document.getElementById('styleSelect').value = 'none';
 
   const image = document.getElementById('generatedImage');
-  image.src = '';                             // ✅ Clear image content
-  image.style.display = 'none';              // ✅ Hide the image
+  image.src = '';
+  image.style.display = 'none';
 
-  ctx.clearRect(0, 0, canvas.width, canvas.height); // ✅ Optional: clear waveform canvas
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  document.getElementById('moodHistory').innerHTML = '';
 });
-
 
 // === Generate Image ===
 document.getElementById('generate').addEventListener('click', async () => {
   const mood = document.getElementById('activityInput').value;
   const style = document.getElementById('styleSelect').value;
+  const thinking = document.getElementById('thinking');
+
   console.log(`🟡 Generate clicked — Mood: "${mood}", Style: "${style}"`);
 
   if (mood && style !== 'none') {
+    // Start thinking dots
+    thinking.style.display = 'block';
+    let dotCount = 0;
+    thinking.textContent = 'Generating';
+    const dotInterval = setInterval(() => {
+      dotCount = (dotCount + 1) % 5;
+      thinking.textContent = 'Generating' + '.'.repeat(dotCount);
+    }, 300);
+
     try {
       const res = await fetch('https://mood-into-art-backend.onrender.com/generate', {
         method: 'POST',
@@ -230,10 +237,10 @@ document.getElementById('generate').addEventListener('click', async () => {
       if (!res.ok) throw new Error(`Failed to generate image — ${res.status}`);
       const data = await res.json();
 
-      console.log("📦 Backend response data:", data);
+      clearInterval(dotInterval);
+      thinking.style.display = 'none';
 
       if (data.image) {
-        console.log("✅ Image received");
         document.getElementById('generatedImage').src = `data:image/png;base64,${data.image}`;
         document.getElementById('generatedImage').style.display = 'block';
 
@@ -258,10 +265,11 @@ document.getElementById('generate').addEventListener('click', async () => {
 
         history.prepend(entry);
       } else {
-        console.warn('⚠️ No image returned from backend.');
         alert('No image returned from backend.');
       }
     } catch (err) {
+      clearInterval(dotInterval);
+      thinking.style.display = 'none';
       console.error('❌ Generate error:', err);
       alert('Something went wrong. Please try again.');
     }
