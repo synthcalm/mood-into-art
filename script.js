@@ -68,11 +68,7 @@ function drawWaveform() {
   ctx.fillStyle = '#000';
   ctx.fillRect(0, 0, canvas.width, canvas.height);
   ctx.lineWidth = 2;
-  ctx.strokeStyle = '#0ff';
-  ctx.shadowColor = '#0ff';
-  ctx.shadowBlur = 10;
-  ctx.lineJoin = 'round';
-  ctx.lineCap = 'round'; // Yellow waveform
+  ctx.strokeStyle = '#ff0'; // Yellow waveform
   ctx.beginPath();
 
   const sliceWidth = canvas.width / dataArray.length;
@@ -155,25 +151,41 @@ function updateCountdown() {
 }
 
 function startRecording() {
-  
-try {
   navigator.permissions.query({ name: 'microphone' })
     .then(permissionStatus => {
       if (permissionStatus.state === 'granted') {
-        startStreamAndRecording();
-      } else if (permissionStatus.state === 'prompt') {
-        askForMicrophoneAccess();
-      } else {
-        alert('Microphone access denied.');
-      }
-    })
-    .catch(() => {
-      askForMicrophoneAccess();
-    });
-} catch {
-  askForMicrophoneAccess();
-}
+        isRecording = true;
+        document.getElementById('startVoice').textContent = 'Stop Voice';
+        countdown = 60;
+        document.getElementById('countdownDisplay').textContent = `00:${countdown.toString().padStart(2, '0')}`;
+        countdownInterval = setInterval(updateCountdown, 1000);
 
+        if (recognition) {
+          recognition.start();
+        } else {
+          setupAssemblyAI();
+        }
+        setupWaveform();
+      } else if (permissionStatus.state === 'prompt') {
+        navigator.mediaDevices.getUserMedia({ audio: true })
+          .then(() => {
+            isRecording = true;
+            document.getElementById('startVoice').textContent = 'Stop Voice';
+            countdown = 60;
+            document.getElementById('countdownDisplay').textContent = `00:${countdown.toString().padStart(2, '0')}`;
+            countdownInterval = setInterval(updateCountdown, 1000);
+
+            if (recognition) {
+              recognition.start();
+            } else {
+              setupAssemblyAI();
+            }
+            setupWaveform();
+          })
+          .catch(err => {
+            console.error('Microphone access denied:', err);
+            alert('Microphone access denied.');
+          });
       } else {
         alert('Microphone access denied. Please enable it in your browser settings.');
       }
@@ -189,9 +201,7 @@ function stopRecording() {
   document.getElementById('startVoice').textContent = 'Start Voice';
   if (recognition) recognition.stop();
   if (socket) socket.close();
-  if (audioContext && audioContext.state !== 'closed') {
-    audioContext.close().catch(e => console.warn('AudioContext close error:', e));
-  }
+  if (audioContext) audioContext.close();
   if (countdownInterval) clearInterval(countdownInterval);
   countdown = 60;
   document.getElementById('countdownDisplay').textContent = `00:${countdown.toString().padStart(2, '0')}`;
@@ -221,7 +231,7 @@ document.getElementById('generate').addEventListener('click', async () => {
   const style = document.getElementById('styleSelect').value;
   if (mood && style !== 'none') {
     try {
-      const response = await fetch('https://mood-into-art-backend.onrender.com/generate', {
+      const response = await fetch('/generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ prompt: `${mood} in ${style} style` }),
@@ -288,26 +298,3 @@ setInterval(() => {
   document.getElementById('dateTimeDisplay').textContent =
     now.toLocaleDateString('en-US') + '\n' + now.toLocaleTimeString('en-US');
 }, 1000);
-
-
-function askForMicrophoneAccess() {
-  navigator.mediaDevices.getUserMedia({ audio: true })
-    .then(() => startStreamAndRecording())
-    .catch(err => {
-      console.error('Mic denied:', err);
-      alert('Microphone access denied.');
-    });
-}
-
-function startStreamAndRecording() {
-  isRecording = true;
-  document.getElementById('startVoice').textContent = 'Stop Voice';
-  countdown = 60;
-  document.getElementById('countdownDisplay').textContent = `00:${countdown.toString().padStart(2, '0')}`;
-  countdownInterval = setInterval(updateCountdown, 1000);
-
-  if (recognition) recognition.start();
-  else setupAssemblyAI();
-
-  setupWaveform();
-}
