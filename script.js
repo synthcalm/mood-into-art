@@ -2,14 +2,17 @@
 const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
 let recognition = null;
 let isRecording = false;
+let socket = null;
+let countdown = 60; // 60 seconds max recording time
+let countdownInterval = null;
 
+// Speech Recognition Setup
 if (SpeechRecognition) {
   recognition = new SpeechRecognition();
   recognition.continuous = true; // Continuous listening
   recognition.interimResults = true; // Show interim results
   recognition.lang = 'en-US'; // Set language
 
-  // Handle transcription results
   recognition.onresult = (event) => {
     const transcript = Array.from(event.results)
       .map(result => result[0].transcript)
@@ -29,7 +32,7 @@ if (SpeechRecognition) {
     }
   };
 } else {
-  alert('Speech recognition not supported in this browser.');
+  console.warn('Speech recognition not supported in this browser. Falling back to AssemblyAI.');
 }
 
 // Waveform visualization setup
@@ -52,6 +55,7 @@ function setupWaveform() {
     .catch(err => {
       console.error('Microphone access error:', err);
       alert('Failed to access microphone. Please ensure permissions are granted.');
+      stopRecording();
     });
 }
 
@@ -87,37 +91,127 @@ function drawWaveform() {
   ctx.stroke();
 }
 
+// AssemblyAI Fallback for Transcription
+async function setupAssemblyAI() {
+  try {
+    const response = await fetch('/assemblyai-token');
+    if (!response.ok) throw new Error('Failed to fetch AssemblyAI token');
+    const { token } = await response.json();
+
+    socket = new WebSocket(`wss://api.assemblyai.com/v2/realtime/ws?token=${token}`);
+
+    socket.onopen = () => {
+      navigator.mediaDevices.getUserMedia({ audio: true })
+        .then(stream => {
+          const mediaRecorder = new MediaRecorder(stream);
+          mediaRecorder.ondataavailable = (event) => {
+            if (socket.readyState === WebSocket.OPEN) {
+              socket.send(event.data);
+            }
+          };
+          mediaRecorder.start(250); // Send audio chunks every 250ms
+        })
+        .catch(err => {
+          console.error('Microphone access error for AssemblyAI:', err);
+          alert('Failed to access microphone for AssemblyAI. Please ensure permissions are granted.');
+          stopRecording();
+        });
+    };
+
+    socket.onmessage = (message) => {
+      const data = JSON.parse(message.data);
+      if (data.text) {
+        document.getElementById('activityInput').value = data.text;
+      }
+    };
+
+    socket.onerror = (error) => {
+      console.error('AssemblyAI WebSocket error:', error);
+      alert('Error with AssemblyAI transcription.');
+      stopRecording();
+    };
+
+    socket.onclose = () => {
+      socket = null;
+    };
+  } catch (error) {
+    console.error('Error setting up AssemblyAI:', error);
+    alert('Failed to set up AssemblyAI transcription.');
+    stopRecording();
+  }
+}
+
+// Countdown Timer
+function updateCountdown() {
+  countdown--;
+  document.getElementById('countdownDisplay').textContent = `00:${countdown.toString().padStart(2, '0')}`;
+  if (countdown <= 0) {
+    stopRecording();
+  }
+}
+
 function startRecording() {
-  if (!recognition) return;
-  isRecording = true;
-  document.getElementById('startVoice').textContent = 'Stop Voice';
-  recognition.start();
-  setupWaveform();
+  navigator.permissions.query({ name: 'microphone' })
+    .then(permissionStatus => {
+      if (permissionStatus.state === 'granted') {
+        isRecording = true;
+        document.getElementById('startVoice').textContent = 'Stop Voice';
+        countdown = 60;
+        document.getElementById('countdownDisplay').textContent = `00:${countdown.toString().padStart(2, '0')}`;
+        countdownInterval = setInterval(updateCountdown, 1000);
+
+        if (recognition) {
+          recognition.start();
+        } else {
+          setupAssemblyAI();
+        }
+        setupWaveform();
+      } else if (permissionStatus.state === 'prompt') {
+        navigator.mediaDevices.getUserMedia({ audio: true })
+          .then(() => {
+            isRecording = true;
+            document.getElementById('startVoice').textContent = 'Stop Voice';
+            countdown = 60;
+            document.getElementById('countdownDisplay').textContent = `00:${countdown.toString().padStart(2, '0')}`;
+            countdownInterval = setInterval(updateCountdown, 1000);
+
+            if (recognition) {
+              recognition.start();
+            } else {
+              setupAssemblyAI();
+            }
+            setupWaveform();
+          })
+          .catch(err => {
+            console.error('Microphone access denied:', err);
+            alert('Microphone access denied.');
+          });
+      } else {
+        alert('Microphone access denied. Please enable it in your browser settings.');
+      }
+    })
+    .catch(err => {
+      console.error('Permission query error:', err);
+      alert('Error checking microphone permissions.');
+    });
 }
 
 function stopRecording() {
   isRecording = false;
   document.getElementById('startVoice').textContent = 'Start Voice';
   if (recognition) recognition.stop();
+  if (socket) socket.close();
   if (audioContext) audioContext.close();
+  if (countdownInterval) clearInterval(countdownInterval);
+  countdown = 60;
+  document.getElementById('countdownDisplay').textContent = `00:${countdown.toString().padStart(2, '0')}`;
   ctx.clearRect(0, 0, canvas.width, canvas.height); // Clear waveform
 }
 
 // Start/Stop voice recording
 document.getElementById('startVoice').addEventListener('click', () => {
   if (!isRecording) {
-    navigator.permissions.query({ name: 'microphone' })
-      .then(permissionStatus => {
-        if (permissionStatus.state === 'granted') {
-          startRecording();
-        } else if (permissionStatus.state === 'prompt') {
-          navigator.mediaDevices.getUserMedia({ audio: true })
-            .then(() => startRecording())
-            .catch(err => alert('Microphone access denied.'));
-        } else {
-          alert('Microphone access denied. Please enable it in your browser settings.');
-        }
-      });
+    startRecording();
   } else {
     stopRecording();
   }
@@ -142,6 +236,7 @@ document.getElementById('generate').addEventListener('click', async () => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ prompt: `${mood} in ${style} style` }),
       });
+      if (!response.ok) throw new Error('Failed to generate image');
       const data = await response.json();
       if (data.image) {
         document.getElementById('generatedImage').src = `data:image/png;base64,${data.image}`;
@@ -192,6 +287,8 @@ document.getElementById('saveImage').addEventListener('click', () => {
     a.href = image.src;
     a.download = 'mood-art.png';
     a.click();
+  } else {
+    alert('No image to save. Please generate an image first.');
   }
 });
 
