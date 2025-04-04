@@ -6,7 +6,7 @@
 
 const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
 if (isIOS && window.top !== window.self) {
-  alert("🔓 To use the microphone, please open this page in full Safari tab (not embedded in another app or iframe).\n");
+  alert("🔓 To use the microphone, please open this page in full Safari tab (not embedded in another app or iframe).");
 }
 
 let isRecording = false;
@@ -97,14 +97,16 @@ async function setupTranscription() {
     const res = await fetch(endpoint);
     if (!res.ok) throw new Error('Token request failed');
     const { token } = await res.json();
+    console.log("🎫 Token received");
 
     socket = new WebSocket(
       isIOS
         ? `wss://api.deepgram.com/v1/listen?access_token=${token}`
-        : `wss://api.assemblyai.com/v2/realtime/ws?token=${token}`
+        : `wss://api.assemblyai.com/v2/realtime/ws?sample_rate=16000&token=${token}`
     );
 
     socket.onopen = () => {
+      console.log("📡 WebSocket connection opened");
       navigator.mediaDevices.getUserMedia({ audio: true }).then(stream => {
         recorderStream = stream;
         recorder = new MediaRecorder(stream);
@@ -133,7 +135,11 @@ async function setupTranscription() {
       console.error('WebSocket error:', err);
       stopRecording();
     };
-    socket.onclose = () => socket = null;
+
+    socket.onclose = () => {
+      console.warn("🔌 WebSocket closed");
+      socket = null;
+    };
 
   } catch (err) {
     console.error('Transcription setup error:', err);
@@ -156,13 +162,19 @@ function startRecording() {
       setupTranscription();
       setupWaveform();
     })
-    .catch(() => alert('Microphone access denied.'));
+    .catch((err) => {
+      console.error("❌ Mic access denied:", err);
+      alert('Microphone access denied. Please check browser and OS settings.');
+    });
 }
 
 function stopRecording() {
   isRecording = false;
   document.getElementById('startVoice').textContent = 'Start Voice';
-  if (recorder && recorder.state !== 'inactive') recorder.stop();
+
+  if (recorder && recorder.state !== 'inactive') {
+    recorder.stop();
+  }
   if (recorderStream) {
     recorderStream.getTracks().forEach(track => track.stop());
     recorderStream = null;
