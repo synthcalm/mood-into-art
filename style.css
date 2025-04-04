@@ -63,16 +63,6 @@ select,
   font-size: 14px;
 }
 
-/* ✅ Generated image resizing */
-#generatedImage {
-  max-width: 100%;
-  max-height: 400px;
-  object-fit: contain;
-  display: none;
-  border: 2px solid #0ff;
-  margin-top: 10px;
-}
-
 /* ✅ Mood history entries */
 #moodHistory > div {
   display: flex;
@@ -91,4 +81,35 @@ select,
 #moodHistory button:hover {
   background: #0ff;
   color: #000;
+}
+
+/* ✅ Generated image wrapper */
+.image-container {
+  width: 100%;
+  max-height: 400px;
+  overflow: hidden;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  margin-top: 10px;
+}
+
+/* ✅ Generated image styling */
+#generatedImage {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+  display: none;
+  border: 2px solid #0ff;
+}
+
+/* ✅ Animated "thinking" dots */
+#thinking {
+  font-family: 'Courier New', monospace;
+  font-size: 14px;
+  color: #ff0;
+  text-align: center;
+  margin-top: 5px;
+  margin-bottom: 10px;
+  height: 20px;
 }
