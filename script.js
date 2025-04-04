@@ -15,6 +15,8 @@ let countdown = 60;
 let countdownInterval = null;
 let thinkingInterval = null;
 let recorder = null;
+let transcriptBuffer = "";
+let recorderStream = null;
 
 const canvas = document.getElementById('waveform');
 const ctx = canvas.getContext('2d');
@@ -104,6 +106,7 @@ async function setupTranscription() {
 
     socket.onopen = () => {
       navigator.mediaDevices.getUserMedia({ audio: true }).then(stream => {
+        recorderStream = stream;
         recorder = new MediaRecorder(stream);
         recorder.ondataavailable = e => {
           if (socket && socket.readyState === WebSocket.OPEN) {
@@ -119,7 +122,11 @@ async function setupTranscription() {
       const text = isIOS
         ? data.channel?.alternatives?.[0]?.transcript
         : data.text;
-      if (text) document.getElementById('activityInput').value = text;
+
+      if (text && text.length > 0) {
+        transcriptBuffer += (transcriptBuffer && !transcriptBuffer.endsWith(" ") ? " " : "") + text;
+        document.getElementById('activityInput').value = transcriptBuffer;
+      }
     };
 
     socket.onerror = err => {
@@ -139,6 +146,8 @@ function startRecording() {
   navigator.mediaDevices.getUserMedia({ audio: true })
     .then(() => {
       isRecording = true;
+      transcriptBuffer = "";
+      document.getElementById('activityInput').value = "";
       document.getElementById('startVoice').textContent = 'Stop Voice';
       countdown = 60;
       document.getElementById('countdownDisplay').textContent = `00:${countdown}`;
@@ -154,6 +163,10 @@ function stopRecording() {
   isRecording = false;
   document.getElementById('startVoice').textContent = 'Start Voice';
   if (recorder && recorder.state !== 'inactive') recorder.stop();
+  if (recorderStream) {
+    recorderStream.getTracks().forEach(track => track.stop());
+    recorderStream = null;
+  }
   if (socket) socket.close();
   if (audioContext) audioContext.close();
   clearInterval(countdownInterval);
