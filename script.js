@@ -63,7 +63,10 @@ function drawWaveform() {
 }
 
 async function setupTranscription() {
-  const endpoint = isIOS ? '/deepgram-token' : '/assemblyai-token';
+  const endpoint = isIOS 
+    ? 'https://mood-into-art-backend.onrender.com/deepgram-token' 
+    : 'https://mood-into-art-backend.onrender.com/assemblyai-token';
+
   try {
     const res = await fetch(endpoint);
     if (!res.ok) throw new Error('Token request failed');
