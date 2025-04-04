@@ -12,6 +12,9 @@ body {
   align-items: center;
   min-height: 100vh;
 }
+.seven-segment {
+  font-family: 'Segment7', monospace;
+}
 .container {
   width: 90%;
   max-width: 600px;
@@ -45,30 +48,9 @@ textarea, select, .button {
 }
 .button-group {
   display: flex;
-  flex-wrap: wrap;
   gap: 10px;
 }
 .button:hover {
   background: #0ff;
   color: #000;
-}
-.loading-indicator {
-  display: none;
-  justify-content: center;
-  margin-top: 10px;
-}
-.dot {
-  width: 5px;
-  height: 5px;
-  background: #0ff;
-  border-radius: 50%;
-  margin: 0 3px;
-  animation: blink 1.5s infinite;
-}
-@keyframes blink {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0; }
-}
-.seven-segment {
-  font-family: 'Segment7', monospace;
 }
