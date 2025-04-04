@@ -1,10 +1,18 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
   <title>Mood Into Art</title>
   <link rel="stylesheet" href="style.css">
+  <style>
+    @font-face {
+      font-family: 'Segment7';
+      src: url('7segment.woff') format('woff');
+    }
+    .seven-segment {
+      font-family: 'Segment7', monospace;
+    }
+  </style>
 </head>
 <body>
   <div class="container">
@@ -13,8 +21,8 @@
       <div id="dateTimeDisplay"></div>
       <div id="countdownDisplay">00:60</div>
     </div>
-    <textarea placeholder="Describe your mood..."></textarea>
-    <select>
+    <textarea id="activityInput" placeholder="Describe your mood..."></textarea>
+    <select id="styleSelect">
       <option value="none" selected disabled>Choose Style</option>
       <option value="photo">Hyper-realistic Photo</option>
       <option value="anime">Japanese Anime Style</option>
@@ -33,51 +41,33 @@
       <option value="minimalism">Minimalism</option>
     </select>
     <div class="button-group">
-      <button class="button">Start Voice</button>
-      <button class="button">Redo</button>
-      <button class="button">Generate Image</button>
-      <button class="button">Save</button>
+      <button class="button" id="startVoice">Start Voice</button>
+      <button class="button" id="redo">Redo</button>
+      <button class="button" id="generate">Generate Image</button>
+      <button class="button" id="saveImage">Save</button>
     </div>
-    <div class="loading-indicator">
-      <div class="dot"></div>
-      <div class="dot"></div>
-      <div class="dot"></div>
+    <div class="loading-indicator" id="loadingIndicator">
+      <div class="dot"></div><div class="dot"></div><div class="dot"></div>
     </div>
-    <img id="generatedImage" style="display:none; max-width: 100%; margin-top: 20px;" />
+    <img id="generatedImage" style="display:none; max-width: 100%; aspect-ratio: 1 / 1;" />
     <div id="moodHistory"></div>
   </div>
-
   <script>
+    let countdown = 60;
+    const countdownDisplay = document.getElementById('countdownDisplay');
+    setInterval(() => {
+      countdownDisplay.textContent = '00:' + String(countdown--).padStart(2, '0');
+      if (countdown < 0) countdown = 60;
+    }, 1000);
+
     function updateDateTime() {
       const now = new Date();
-      const dateStr = now.toLocaleDateString('en-GB', {
-        year: 'numeric',
-        month: 'short',
-        day: '2-digit'
-      });
-      const timeStr = now.toLocaleTimeString('en-GB', {
-        hour: '2-digit',
-        minute: '2-digit',
-        second: '2-digit'
-      });
-
-      document.getElementById('dateTimeDisplay').innerHTML = `${dateStr}<br>${timeStr}`;
+      const dateStr = now.toLocaleDateString('en-GB', { year: 'numeric', month: 'short', day: 'numeric' });
+      const timeStr = now.toLocaleTimeString('en-GB');
+      document.getElementById('dateTimeDisplay').innerHTML = dateStr + '<br>' + timeStr;
     }
-
     setInterval(updateDateTime, 1000);
     updateDateTime();
-
-    let countdown = 60;
-    function startCountdown() {
-      const countdownDisplay = document.getElementById("countdownDisplay");
-      const countdownInterval = setInterval(() => {
-        countdown--;
-        countdownDisplay.textContent = `00:${String(countdown).padStart(2, '0')}`;
-        if (countdown <= 0) clearInterval(countdownInterval);
-      }, 1000);
-    }
-
-    startCountdown();
   </script>
 </body>
 </html>
