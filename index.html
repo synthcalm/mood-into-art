@@ -3,43 +3,81 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>MIA</title>
+  <title>Mood Into Art</title>
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <div id="initOverlay">Initializing audio system...<br>Click anywhere to start</div>
-
   <div class="container">
     <canvas id="waveform"></canvas>
-    
-    <div class="footer-bar">
-      <div id="dateTimeDisplay">2025 Apr 04<br>03:14:05</div>
+    <div class="footer-bar seven-segment">
+      <div id="dateTimeDisplay"></div>
       <div id="countdownDisplay">00:60</div>
     </div>
-
-    <div class="dot-alert" id="redDot"></div>
-    <textarea id="activityInput" rows="4" placeholder="Describe your mood..."></textarea>
-    
-    <select id="styleSelect">
-      <option value="none" disabled selected>Choose Style</option>
-      <option value="cinematic">Cinematic</option>
+    <textarea placeholder="Describe your mood..."></textarea>
+    <select>
+      <option value="none" selected disabled>Choose Style</option>
+      <option value="photo">Hyper-realistic Photo</option>
+      <option value="anime">Japanese Anime Style</option>
+      <option value="abstract">Abstract</option>
+      <option value="surrealism">Surrealism</option>
+      <option value="post-modern">Post-modern</option>
       <option value="cyberpunk">Cyberpunk</option>
+      <option value="arabic-calligraphy">Arabic Calligraphy</option>
+      <option value="chinese-calligraphy">Chinese Calligraphy</option>
+      <option value="japanese-calligraphy">Japanese Calligraphy</option>
+      <option value="marvel">Marvel Comic</option>
+      <option value="art-deco">Art Deco</option>
+      <option value="impressionist">Impressionist</option>
+      <option value="pop-art">Pop Art</option>
+      <option value="digital-painting">Digital Painting</option>
+      <option value="minimalism">Minimalism</option>
     </select>
-
     <div class="button-group">
-      <button class="button" id="startVoice">Start Voice</button>
-      <button class="button" id="generate">Generate Image</button>
+      <button class="button">Start Voice</button>
+      <button class="button">Redo</button>
+      <button class="button">Generate Image</button>
+      <button class="button">Save</button>
     </div>
-
-    <div id="loadingIndicator" class="loading-indicator">
-      <div class="dot"></div><div class="dot"></div><div class="dot"></div>
+    <div class="loading-indicator">
+      <div class="dot"></div>
+      <div class="dot"></div>
+      <div class="dot"></div>
     </div>
-
-    <img id="generatedImage" />
+    <img id="generatedImage" style="display:none; max-width: 100%; margin-top: 20px;" />
     <div id="moodHistory"></div>
   </div>
 
-  <script src="script.js"></script>
+  <script>
+    function updateDateTime() {
+      const now = new Date();
+      const dateStr = now.toLocaleDateString('en-GB', {
+        year: 'numeric',
+        month: 'short',
+        day: '2-digit'
+      });
+      const timeStr = now.toLocaleTimeString('en-GB', {
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit'
+      });
+
+      document.getElementById('dateTimeDisplay').innerHTML = `${dateStr}<br>${timeStr}`;
+    }
+
+    setInterval(updateDateTime, 1000);
+    updateDateTime();
+
+    let countdown = 60;
+    function startCountdown() {
+      const countdownDisplay = document.getElementById("countdownDisplay");
+      const countdownInterval = setInterval(() => {
+        countdown--;
+        countdownDisplay.textContent = `00:${String(countdown).padStart(2, '0')}`;
+        if (countdown <= 0) clearInterval(countdownInterval);
+      }, 1000);
+    }
+
+    startCountdown();
+  </script>
 </body>
 </html>
