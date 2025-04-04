@@ -1,7 +1,4 @@
-@font-face {
-  font-family: 'Segment7';
-  src: url('7segment.woff') format('woff');
-}
+
 body {
   font-family: 'Courier New', monospace;
   margin: 0;
@@ -11,9 +8,6 @@ body {
   justify-content: center;
   align-items: center;
   min-height: 100vh;
-}
-.seven-segment {
-  font-family: 'Segment7', monospace;
 }
 .container {
   width: 90%;
@@ -37,6 +31,8 @@ canvas#waveform {
   justify-content: space-between;
   font-size: 14px;
   margin: 10px 0;
+  font-family: 'Courier New', monospace;
+  color: #00ffff;
 }
 textarea, select, .button {
   width: 100%;
@@ -48,6 +44,7 @@ textarea, select, .button {
 }
 .button-group {
   display: flex;
+  flex-wrap: wrap;
   gap: 10px;
 }
 .button:hover {
