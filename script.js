@@ -1,7 +1,7 @@
 // === iOS-Ready Version: Mood Into Art with Deepgram + AssemblyAI ===
 // ✅ Deepgram on iOS (Safari)
 // ✅ AssemblyAI on other platforms
-// ✅ Displays waveform, countdown, transcription
+// ✅ Displays waveform, countdown, transcription, and animated thinking dots
 
 const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
 if (isIOS && window.top !== window.self) {
@@ -12,6 +12,7 @@ let isRecording = false;
 let socket = null;
 let countdown = 60;
 let countdownInterval = null;
+let thinkingInterval = null;
 
 const canvas = document.getElementById('waveform');
 const ctx = canvas.getContext('2d');
@@ -60,6 +61,27 @@ function drawWaveform() {
 
   ctx.lineTo(canvas.width, canvas.height / 2);
   ctx.stroke();
+}
+
+function startThinkingAnimation() {
+  const thinking = document.getElementById('thinking');
+  if (!thinking) return;
+  let dotCount = 0;
+  thinking.style.display = 'block';
+  thinking.textContent = 'Listening';
+
+  thinkingInterval = setInterval(() => {
+    dotCount = (dotCount + 1) % 5;
+    thinking.textContent = 'Listening' + '.'.repeat(dotCount);
+  }, 500);
+}
+
+function stopThinkingAnimation() {
+  const thinking = document.getElementById('thinking');
+  if (!thinking) return;
+  clearInterval(thinkingInterval);
+  thinking.textContent = '';
+  thinking.style.display = 'none';
 }
 
 async function setupTranscription() {
@@ -117,6 +139,7 @@ function startRecording() {
       countdown = 60;
       document.getElementById('countdownDisplay').textContent = `00:${countdown}`;
       countdownInterval = setInterval(updateCountdown, 1000);
+      startThinkingAnimation();
       setupTranscription();
       setupWaveform();
     })
@@ -132,6 +155,7 @@ function stopRecording() {
   countdown = 60;
   document.getElementById('countdownDisplay').textContent = `00:${countdown}`;
   ctx.clearRect(0, 0, canvas.width, canvas.height);
+  stopThinkingAnimation();
 }
 
 function updateCountdown() {
