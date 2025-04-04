@@ -8,15 +8,20 @@
 </head>
 <body>
   <div class="container">
+
+    <!-- 🎛️ Waveform canvas -->
     <canvas id="waveform"></canvas>
 
+    <!-- 🕒 Date & Countdown -->
     <div class="footer-bar">
       <div id="dateTimeDisplay" class="seven-segment"></div>
       <div id="countdownDisplay" class="seven-segment">00:60</div>
     </div>
 
+    <!-- 🎤 Transcript input -->
     <textarea id="activityInput" rows="4" placeholder="Describe your mood... (editable after recording)"></textarea>
 
+    <!-- 🎨 Style selection -->
     <select id="styleSelect">
       <option value="none" selected disabled>Choose Style</option>
       <option value="photo">Hyper-realistic Photo</option>
@@ -36,6 +41,7 @@
       <option value="minimalism">Minimalism</option>
     </select>
 
+    <!-- 🎛️ Button group -->
     <div class="button-group">
       <button class="button" id="startVoice">Start Voice</button>
       <button class="button" id="redo">Redo</button>
@@ -44,14 +50,14 @@
     </div>
 
     <!-- ⏳ Animated thinking dots -->
-    <div id="thinking" style="display: none;">Generating ⠄</div>
+    <div id="thinking" style="display: none;">Listening...</div>
 
-    <!-- 🖼️ Generated image container (now uses .image-frame) -->
+    <!-- 🖼️ Image display -->
     <div class="image-frame">
       <img id="generatedImage" />
     </div>
 
-    <!-- 🕓 Mood history log -->
+    <!-- 🗃️ Mood history -->
     <div id="moodHistory"></div>
   </div>
 
