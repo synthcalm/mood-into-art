@@ -43,10 +43,33 @@ function drawWaveform() {
   requestAnimationFrame(drawWaveform);
   analyser.getByteTimeDomainData(dataArray);
 
-  ctx.fillStyle = '#00CED1';
+  // Clear the canvas with a black background
+  ctx.fillStyle = '#000';
   ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  // Draw the grid
+  ctx.strokeStyle = '#444'; // Light gray grid lines
+  ctx.lineWidth = 0.5;
+
+  // Vertical grid lines (every 50 pixels)
+  for (let x = 0; x <= canvas.width; x += 50) {
+    ctx.beginPath();
+    ctx.moveTo(x, 0);
+    ctx.lineTo(x, canvas.height);
+    ctx.stroke();
+  }
+
+  // Horizontal grid lines (every 50 pixels)
+  for (let y = 0; y <= canvas.height; y += 50) {
+    ctx.beginPath();
+    ctx.moveTo(0, y);
+    ctx.lineTo(canvas.width, y);
+    ctx.stroke();
+  }
+
+  // Draw the waveform
+  ctx.strokeStyle = '#ff0'; // Yellow waveform
   ctx.lineWidth = 2;
-  ctx.strokeStyle = '#ff0';
   ctx.beginPath();
 
   const sliceWidth = canvas.width / dataArray.length;
@@ -230,4 +253,90 @@ function stopRecording() {
   console.log("Stopping - Transcript:", mood);
 }
 
-function update
+function updateCountdown() {
+  countdown--;
+  document.getElementById('countdownDisplay').textContent = `00:${countdown.toString().padStart(2, '0')}`;
+  if (countdown <= 0) stopRecording();
+}
+
+// === Button bindings ===
+document.getElementById('startVoice').addEventListener('click', () => {
+  isRecording ? stopRecording() : startRecording();
+});
+
+document.getElementById('redo').addEventListener('click', () => {
+  document.getElementById('activityInput').value = '';
+  hasGenerated = false;
+  console.log("Redo - Text cleared, ready for new recording");
+});
+
+document.getElementById('generate').addEventListener('click', async () => {
+  if (hasGenerated) {
+    console.log("Generate skipped - Image already generated");
+    alert("Image already generated. Use Redo to start over.");
+    return;
+  }
+
+  const mood = document.getElementById('activityInput').value;
+  let style = document.getElementById('styleSelect').value;
+  const image = document.getElementById('generatedImage');
+  const thinking = document.getElementById('thinking');
+
+  if (!mood) {
+    console.warn("Generate - No mood text");
+    alert("Please record some audio first!");
+    return;
+  }
+  if (style === 'none') {
+    console.warn("Generate - No style selected");
+    alert("Please select an art style!");
+    return;
+  }
+
+  console.log("Generating - Mood:", mood, "Style:", style);
+  startGeneratingDots();
+  thinking.style.display = 'block';
+
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 20000);
+    const res = await fetch('https://mood-into-art-backend.onrender.com/generate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ prompt: `${mood} in ${style} style` }),
+      signal: controller.signal
+    });
+    clearTimeout(timeout);
+
+    const data = await res.json();
+    console.log("Response:", data);
+    if (data.image) {
+      image.src = `data:image/png;base64,${data.image}`;
+      image.style.display = 'block';
+      hasGenerated = true;
+
+      const history = document.getElementById('moodHistory');
+      const entry = document.createElement('div');
+      entry.className = 'history-entry';
+
+      const text = document.createElement('span');
+      text.textContent = `${new Date().toLocaleString()} — ${mood} [${style}]`;
+      entry.appendChild(text);
+
+      const del = document.createElement('button');
+      del.textContent = 'Delete';
+      del.addEventListener('click', () => history.removeChild(entry));
+      entry.appendChild(del);
+
+      history.prepend(entry);
+    } else {
+      console.warn("No image in response");
+      alert("No image received from server");
+    }
+  } catch (err) {
+    console.error('Error generating image:', err);
+    alert("Failed to generate image. Check your internet or try again.");
+  } finally {
+    stopThinkingText();
+  }
+});
