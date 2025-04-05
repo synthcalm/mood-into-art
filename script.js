@@ -48,20 +48,20 @@ function drawWaveform() {
   ctx.fillStyle = '#000';
   ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-  // Draw the grid
-  ctx.strokeStyle = '#444'; // Light gray grid lines
+  // Draw the grid (match CSS: 20px spacing, yellow with 0.3 opacity)
+  ctx.strokeStyle = 'rgba(255, 255, 0, 0.3)';
   ctx.lineWidth = 0.5;
 
-  // Vertical grid lines (every 50 pixels)
-  for (let x = 0; x <= canvas.width; x += 50) {
+  // Vertical grid lines (every 20 pixels to match CSS)
+  for (let x = 0; x <= canvas.width; x += 20) {
     ctx.beginPath();
     ctx.moveTo(x, 0);
     ctx.lineTo(x, canvas.height);
     ctx.stroke();
   }
 
-  // Horizontal grid lines (every 50 pixels)
-  for (let y = 0; y <= canvas.height; y += 50) {
+  // Horizontal grid lines (every 20 pixels to match CSS)
+  for (let y = 0; y <= canvas.height; y += 20) {
     ctx.beginPath();
     ctx.moveTo(0, y);
     ctx.lineTo(canvas.width, y);
@@ -153,10 +153,8 @@ function startRecording() {
       document.getElementById('activityInput').value = "";
       const startVoiceButton = document.getElementById('startVoice');
       startVoiceButton.textContent = 'Stop Voice';
-      // Ensure the button turns red when engaged
-      startVoiceButton.style.backgroundColor = 'red !important';
-      startVoiceButton.style.color = 'white !important';
-      startVoiceButton.style.borderColor = 'red !important';
+      // Add the recording class to turn the button red
+      startVoiceButton.classList.add('recording');
       countdown = 60;
       document.getElementById('countdownDisplay').textContent = `00:${countdown}`;
       countdownInterval = setInterval(updateCountdown, 1000);
@@ -238,10 +236,8 @@ function stopRecording() {
   isRecording = false;
   const startVoiceButton = document.getElementById('startVoice');
   startVoiceButton.textContent = 'Start Voice';
-  // Revert button to original cyan style
-  startVoiceButton.style.backgroundColor = '#00CED1 !important';
-  startVoiceButton.style.color = 'white !important';
-  startVoiceButton.style.borderColor = '#00CED1 !important';
+  // Remove the recording class to revert the button style
+  startVoiceButton.classList.remove('recording');
   if (recognition) recognition.stop();
   if (recorder && recorder.state !== 'inactive') recorder.stop();
   if (socket && socket.readyState === WebSocket.OPEN) socket.close();
