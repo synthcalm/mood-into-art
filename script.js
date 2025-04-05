@@ -43,7 +43,7 @@ function drawWaveform() {
   requestAnimationFrame(drawWaveform);
   analyser.getByteTimeDomainData(dataArray);
 
-  ctx.fillStyle = '#00CED1'; // Match the background color from the screenshot
+  ctx.fillStyle = '#00CED1';
   ctx.fillRect(0, 0, canvas.width, canvas.height);
   ctx.lineWidth = 2;
   ctx.strokeStyle = '#ff0';
@@ -128,7 +128,10 @@ function startRecording() {
       document.getElementById('activityInput').value = "";
       const startVoiceButton = document.getElementById('startVoice');
       startVoiceButton.textContent = 'Stop Voice';
-      startVoiceButton.style.backgroundColor = 'red'; // Turn button red during recording
+      // Turn the entire button red to signify recording
+      startVoiceButton.style.backgroundColor = 'red';
+      startVoiceButton.style.color = 'white'; // Ensure text is readable
+      startVoiceButton.style.borderColor = 'red'; // Match border to background
       countdown = 60;
       document.getElementById('countdownDisplay').textContent = `00:${countdown}`;
       countdownInterval = setInterval(updateCountdown, 1000);
@@ -195,7 +198,10 @@ function stopRecording() {
   isRecording = false;
   const startVoiceButton = document.getElementById('startVoice');
   startVoiceButton.textContent = 'Start Voice';
-  startVoiceButton.style.backgroundColor = '#00CED1'; // Revert to original cyan color
+  // Revert button to original cyan style
+  startVoiceButton.style.backgroundColor = '#00CED1';
+  startVoiceButton.style.color = 'white';
+  startVoiceButton.style.borderColor = '#00CED1';
   if (recognition) recognition.stop();
   if (recorder && recorder.state !== 'inactive') recorder.stop();
   if (socket && socket.readyState === WebSocket.OPEN) socket.close();
@@ -256,7 +262,7 @@ document.getElementById('generate').addEventListener('click', async () => {
 
   try {
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 20000); // 20s timeout
+    const timeout = setTimeout(() => controller.abort(), 20000);
     const res = await fetch('https://mood-into-art-backend.onrender.com/generate', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
