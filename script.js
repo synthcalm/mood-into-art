@@ -200,6 +200,10 @@ function stopRecording() {
   document.getElementById('countdownDisplay').textContent = `00:${countdown}`;
   ctx.clearRect(0, 0, canvas.width, canvas.height);
   stopThinkingText();
+  
+  // Log state before triggering
+  const mood = document.getElementById('activityInput').value;
+  console.log("Stopping - Transcript:", mood);
   triggerImageGeneration();
 }
 
@@ -212,7 +216,19 @@ function updateCountdown() {
 function triggerImageGeneration() {
   const mood = document.getElementById('activityInput').value;
   const style = document.getElementById('styleSelect').value;
-  if (!mood || style === 'none') return;
+  console.log("Triggering - Mood:", mood, "Style:", style);
+  
+  if (!mood) {
+    console.warn("No mood text available for image generation");
+    alert("Please record some audio first!");
+    return;
+  }
+  if (style === 'none') {
+    console.warn("No style selected");
+    alert("Please select an art style!");
+    return;
+  }
+  
   document.getElementById('generate').click();
 }
 
@@ -242,13 +258,18 @@ document.getElementById('generate').addEventListener('click', async () => {
   thinking.style.display = 'block';
 
   try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 10000); // 10s timeout
     const res = await fetch('https://mood-into-art-backend.onrender.com/generate', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ prompt: `${mood} in ${style} style` })
+      body: JSON.stringify({ prompt: `${mood} in ${style} style` }),
+      signal: controller.signal
     });
+    clearTimeout(timeout);
 
     const data = await res.json();
+    console.log("Response:", data); // Log backend response
     if (data.image) {
       image.src = `data:image/png;base64,${data.image}`;
       image.style.display = 'block';
@@ -268,11 +289,11 @@ document.getElementById('generate').addEventListener('click', async () => {
 
       history.prepend(entry);
     } else {
-      alert("No image received");
+      alert("No image received from server");
     }
   } catch (err) {
     console.error('Error generating image:', err);
-    alert("Failed to generate image.");
+    alert("Failed to generate image. Check your internet or try again.");
   } finally {
     stopThinkingText();
   }
