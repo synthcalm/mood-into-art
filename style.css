@@ -1,3 +1,4 @@
+
 body {
   font-family: 'Courier New', monospace;
   margin: 0;
@@ -39,6 +40,9 @@ textarea, select, .button {
   padding: 10px;
   margin-bottom: 10px;
 }
+select {
+  text-align: center;
+}
 .button-group {
   display: flex;
   gap: 10px;
@@ -77,5 +81,3 @@ textarea, select, .button {
   margin-bottom: 10px;
   height: 20px;
 }
-
-
