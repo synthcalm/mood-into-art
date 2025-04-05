@@ -43,16 +43,16 @@ textarea, select, .button {
   padding: 10px;
   margin-bottom: 10px;
   text-align: center;
-  box-sizing: border-box; /* Ensure padding and border are included in width */
+  box-sizing: border-box;
 }
 
 /* Specific styles for textarea to ensure it fits with borders */
 textarea#activityInput {
-  max-width: 100%; /* Prevent overflow on small screens */
-  min-height: 60px; /* Ensure it has enough height for text */
-  resize: none; /* Prevent manual resizing */
-  overflow-wrap: break-word; /* Ensure text wraps */
-  font-size: 14px; /* Adjust font size for readability */
+  max-width: 100%;
+  min-height: 60px;
+  resize: none;
+  overflow-wrap: break-word;
+  font-size: 14px;
 }
 
 /* Style dropdown fix: center text on all browsers including iOS */
@@ -77,11 +77,11 @@ select#styleSelect {
   cursor: pointer;
 }
 
-/* Add a class for when the Start Voice button is recording */
+/* Updated recording class for Start Voice button */
 .button.recording {
-  background: red !important;
-  border-color: red !important;
-  color: white !important;
+  background: #000 !important;
+  border-color: #ff00ff !important; /* Magenta border */
+  color: #0ff !important; /* Keep text cyan */
 }
 
 .button:hover {
