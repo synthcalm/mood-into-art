@@ -105,21 +105,21 @@ async function setupTranscription() {
         : `wss://api.assemblyai.com/v2/realtime/ws?sample_rate=16000&token=${token}`
     );
 
-    socket.onopen = () => {
+    socket.addEventListener('open', () => {
       console.log("📡 WebSocket connection opened");
       navigator.mediaDevices.getUserMedia({ audio: true }).then(stream => {
         recorderStream = stream;
-        recorder = new MediaRecorder(stream);
-        recorder.ondataavailable = e => {
+        recorder = new MediaRecorder(stream, { mimeType: 'audio/webm' });
+        recorder.addEventListener('dataavailable', e => {
           if (socket && socket.readyState === WebSocket.OPEN) {
             socket.send(e.data);
           }
-        };
+        });
         recorder.start(250);
       });
-    };
+    });
 
-    socket.onmessage = e => {
+    socket.addEventListener('message', e => {
       const data = JSON.parse(e.data);
       const text = isIOS
         ? data.channel?.alternatives?.[0]?.transcript
@@ -129,17 +129,17 @@ async function setupTranscription() {
         transcriptBuffer += (transcriptBuffer && !transcriptBuffer.endsWith(" ") ? " " : "") + text;
         document.getElementById('activityInput').value = transcriptBuffer;
       }
-    };
+    });
 
-    socket.onerror = err => {
+    socket.addEventListener('error', err => {
       console.error('WebSocket error:', err);
       stopRecording();
-    };
+    });
 
-    socket.onclose = () => {
+    socket.addEventListener('close', () => {
       console.warn("🔌 WebSocket closed");
       socket = null;
-    };
+    });
 
   } catch (err) {
     console.error('Transcription setup error:', err);
