@@ -13,7 +13,7 @@ let recognition = null;
 let transcriptBuffer = "";
 let recorder = null;
 let socket = null;
-let hasGenerated = false; // New flag to track if image has been generated
+let hasGenerated = false;
 
 const canvas = document.getElementById('waveform');
 const ctx = canvas.getContext('2d');
@@ -50,7 +50,9 @@ function drawWaveform() {
   ctx.beginPath();
 
   const sliceWidth = canvas.width / dataArray.length;
-  let x = 0;
+  let x = 
+   
+0;
 
   for (let i = 0; i < dataArray.length; i++) {
     const v = dataArray[i] / 128.0;
@@ -191,7 +193,7 @@ function setupDeepgram() {
 
 function stopRecording() {
   isRecording = false;
-  document.getElementByUnitId('startVoice').textContent = 'Start Voice';
+  document.getElementById('startVoice').textContent = 'Start Voice';
   if (recognition) recognition.stop();
   if (recorder && recorder.state !== 'inactive') recorder.stop();
   if (socket && socket.readyState === WebSocket.OPEN) socket.close();
@@ -215,17 +217,20 @@ function updateCountdown() {
 
 function triggerImageGeneration() {
   const mood = document.getElementById('activityInput').value;
-  const style = document.getElementById('styleSelect').value;
+  let style = document.getElementById('styleSelect').value;
+  
+  // Fallback to a default style if none selected
+  if (style === 'none') {
+    style = 'abstract'; // Default style
+    document.getElementById('styleSelect').value = style;
+    console.log("No style selected, defaulting to:", style);
+  }
+  
   console.log("Triggering - Mood:", mood, "Style:", style);
   
   if (!mood) {
     console.warn("No mood text available for image generation");
     alert("Please record some audio first!");
-    return;
-  }
-  if (style === 'none') {
-    console.warn("No style selected");
-    alert("Please select an art style!");
     return;
   }
   
@@ -238,9 +243,8 @@ document.getElementById('startVoice').addEventListener('click', () => {
 });
 
 document.getElementById('redo').addEventListener('click', () => {
-  // Only clear the text box and reset generation flag
   document.getElementById('activityInput').value = '';
-  hasGenerated = false; // Allow generating a new image after redo
+  hasGenerated = false;
   console.log("Redo - Text cleared, ready for new recording");
 });
 
@@ -255,14 +259,24 @@ document.getElementById('generate').addEventListener('click', async () => {
   const style = document.getElementById('styleSelect').value;
   const image = document.getElementById('generatedImage');
   const thinking = document.getElementById('thinking');
-  if (!mood || style === 'none') return;
+
+  if (!mood) {
+    console.warn("Generate - No mood text");
+    alert("Please record some audio first!");
+    return;
+  }
+  if (style === 'none') {
+    console.warn("Generate - No style selected");
+    alert("Please select an art style!");
+    return;
+  }
 
   startGeneratingDots();
   thinking.style.display = 'block';
 
   try {
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 10000); // 10s timeout
+    const timeout = setTimeout(() => controller.abort(), 15000); // Increased to 15s
     const res = await fetch('https://mood-into-art-backend.onrender.com/generate', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -276,7 +290,7 @@ document.getElementById('generate').addEventListener('click', async () => {
     if (data.image) {
       image.src = `data:image/png;base64,${data.image}`;
       image.style.display = 'block';
-      hasGenerated = true; // Set flag after successful generation
+      hasGenerated = true;
 
       const history = document.getElementById('moodHistory');
       const entry = document.createElement('div');
@@ -293,6 +307,7 @@ document.getElementById('generate').addEventListener('click', async () => {
 
       history.prepend(entry);
     } else {
+      console.warn("No image in response");
       alert("No image received from server");
     }
   } catch (err) {
