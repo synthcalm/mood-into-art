@@ -2,7 +2,7 @@
 
 const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
 if (isIOS && window.top !== window.self) {
-  alert("🔓 To use the microphone, please open this page in full Safari tab (not embedded in another app or iframe).\n");
+  alert("🔓 To use the microphone, please open this page in a full Safari tab (not embedded in another app or iframe).\n");
 }
 
 let isRecording = false;
@@ -48,8 +48,8 @@ function setupWaveform() {
       drawWaveform();
     })
     .catch(err => {
-      console.error('🎤 Mic error:', err);
-      alert('Microphone access failed.');
+      console.error('🎤 Mic error in setupWaveform:', err);
+      alert('Microphone access failed for waveform. Please check permissions.');
       stopRecording();
     });
 }
@@ -133,7 +133,9 @@ function stopThinkingText() {
 function setupWebSpeechAPI() {
   const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
   if (!SpeechRecognition) {
-    alert("Web Speech API not supported in this browser");
+    console.error("Web Speech API not supported in this browser");
+    alert("Web Speech API not supported in this browser. Transcription will not work.");
+    stopRecording();
     return;
   }
 
@@ -146,6 +148,7 @@ function setupWebSpeechAPI() {
     const transcript = Array.from(event.results).map(r => r[0].transcript).join('');
     document.getElementById('activityInput').value = transcript;
     transcriptBuffer = transcript;
+    console.log("Web Speech API transcript:", transcript);
   };
 
   recognition.onerror = err => {
@@ -154,10 +157,19 @@ function setupWebSpeechAPI() {
   };
 
   recognition.onend = () => {
-    if (isRecording) recognition.start();
+    if (isRecording) {
+      console.log("Web Speech API restarting...");
+      recognition.start();
+    }
   };
 
-  recognition.start();
+  try {
+    recognition.start();
+    console.log("Web Speech API started successfully");
+  } catch (err) {
+    console.error("Web Speech API start error:", err);
+    stopRecording();
+  }
 }
 
 function startRecording() {
@@ -177,14 +189,17 @@ function startRecording() {
       setupWaveform();
 
       if (isIOS) {
+        console.log("Attempting to use Deepgram for iOS...");
         setupDeepgram();
       } else {
+        console.log("Using Web Speech API for desktop...");
         setupWebSpeechAPI();
       }
     })
     .catch(err => {
       console.error("❌ Mic access denied:", err);
       alert('Microphone access denied. Please check browser and OS settings.');
+      stopRecording();
     });
 }
 
@@ -201,19 +216,22 @@ function setupDeepgram() {
 
       socket.onopen = () => {
         console.log("Deepgram WebSocket opened successfully");
-        navigator.mediaDevices.getUserMedia({ audio: true }).then(stream => {
-          recorder = new MediaRecorder(stream);
-          recorder.ondataavailable = e => {
-            if (socket && socket.readyState === WebSocket.OPEN) {
-              socket.send(e.data);
-            }
-          };
-          recorder.start(250);
-        }).catch(err => {
-          console.error("Deepgram mic access error:", err);
-          alert("Deepgram failed to access microphone. Falling back to Web Speech API.");
-          setupWebSpeechAPI();
-        });
+        navigator.mediaDevices.getUserMedia({ audio: true })
+          .then(stream => {
+            recorder = new MediaRecorder(stream);
+            recorder.ondataavailable = e => {
+              if (socket && socket.readyState === WebSocket.OPEN) {
+                socket.send(e.data);
+              }
+            };
+            recorder.start(250);
+            console.log("Deepgram recording started");
+          })
+          .catch(err => {
+            console.error("Deepgram mic access error:", err);
+            alert("Deepgram failed to access microphone. Falling back to Web Speech API.");
+            setupWebSpeechAPI();
+          });
       };
 
       socket.onmessage = e => {
@@ -222,6 +240,7 @@ function setupDeepgram() {
         if (text && text.length > 0) {
           transcriptBuffer += (transcriptBuffer && !transcriptBuffer.endsWith(" ") ? " " : "") + text;
           document.getElementById('activityInput').value = transcriptBuffer;
+          console.log("Deepgram transcript:", text);
         } else {
           console.log("Deepgram received message, but no transcript:", data);
         }
@@ -237,6 +256,11 @@ function setupDeepgram() {
       socket.onclose = () => {
         console.log("🔌 Deepgram WebSocket closed");
         socket = null;
+        // If recording is still active, fall back to Web Speech API
+        if (isRecording) {
+          console.log("Deepgram closed unexpectedly. Falling back to Web Speech API.");
+          setupWebSpeechAPI();
+        }
       };
     })
     .catch(err => {
