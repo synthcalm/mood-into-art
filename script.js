@@ -261,16 +261,16 @@ document.getElementById('startVoice').addEventListener('click', () => {
   isRecording ? stopRecording() : startRecording();
 });
 
-document.getElementById('redo').addEventListener('click', () => {
+document.getElementById('clear').addEventListener('click', () => {
   document.getElementById('activityInput').value = '';
   hasGenerated = false;
-  console.log("Redo - Text cleared, ready for new recording");
+  console.log("Clear - Text cleared, ready for new recording");
 });
 
 document.getElementById('generate').addEventListener('click', async () => {
   if (hasGenerated) {
     console.log("Generate skipped - Image already generated");
-    alert("Image already generated. Use Redo to start over.");
+    alert("Image already generated. Use Clear to start over.");
     return;
   }
 
