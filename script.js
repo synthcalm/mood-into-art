@@ -185,19 +185,29 @@ function setupDeepgram() {
 }
 
 function stopRecording() {
-  isRecording = false;
-  document.getElementById('startVoice').textContent = 'Start Voice';
-  if (recognition) recognition.stop();
-  if (recorder && recorder.state !== 'inactive') recorder.stop();
-  if (socket && socket.readyState === WebSocket.OPEN) socket.close();
-  if (audioContext) audioContext.close();
-  clearInterval(countdownInterval);
-  countdown = 60;
-  document.getElementById('countdownDisplay').textContent = `00:${countdown}`;
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
-  stopThinkingAnimation();
-  triggerImageGeneration();
-}
+    isRecording = false;
+    document.getElementById('startVoice').textContent = 'Start Voice';
+  
+    if (recognition) recognition.stop();
+    if (recorder && recorder.state !== 'inactive') recorder.stop();
+    if (socket && socket.readyState === WebSocket.OPEN) socket.close();
+  
+    if (audioContext && audioContext.state !== 'closed') {
+      try {
+        audioContext.close();
+      } catch (err) {
+        console.warn("⚠️ Error while closing audioContext:", err);
+      }
+    }
+  
+    clearInterval(countdownInterval);
+    countdown = 60;
+    document.getElementById('countdownDisplay').textContent = `00:${countdown}`;
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    stopThinkingAnimation();
+    triggerImageGeneration();
+  }
+  
 
 function updateCountdown() {
   countdown--;
