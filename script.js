@@ -153,7 +153,6 @@ function startRecording() {
       document.getElementById('activityInput').value = "";
       const startVoiceButton = document.getElementById('startVoice');
       startVoiceButton.textContent = 'Stop Voice';
-      // Add the recording class to turn the button red
       startVoiceButton.classList.add('recording');
       countdown = 60;
       document.getElementById('countdownDisplay').textContent = `00:${countdown}`;
@@ -236,7 +235,6 @@ function stopRecording() {
   isRecording = false;
   const startVoiceButton = document.getElementById('startVoice');
   startVoiceButton.textContent = 'Start Voice';
-  // Remove the recording class to revert the button style
   startVoiceButton.classList.remove('recording');
   if (recognition) recognition.stop();
   if (recorder && recorder.state !== 'inactive') recorder.stop();
