@@ -121,6 +121,7 @@ function setupWebSpeechAPI() {
 }
 
 function startRecording() {
+  console.log("Device type:", isIOS ? "iOS" : "Desktop");
   navigator.mediaDevices.getUserMedia({ audio: true })
     .then(() => {
       isRecording = true;
@@ -128,10 +129,9 @@ function startRecording() {
       document.getElementById('activityInput').value = "";
       const startVoiceButton = document.getElementById('startVoice');
       startVoiceButton.textContent = 'Stop Voice';
-      // Turn the entire button red to signify recording
-      startVoiceButton.style.backgroundColor = 'red';
-      startVoiceButton.style.color = 'white'; // Ensure text is readable
-      startVoiceButton.style.borderColor = 'red'; // Match border to background
+      startVoiceButton.style.backgroundColor = 'red !important';
+      startVoiceButton.style.color = 'white !important';
+      startVoiceButton.style.borderColor = 'red !important';
       countdown = 60;
       document.getElementById('countdownDisplay').textContent = `00:${countdown}`;
       countdownInterval = setInterval(updateCountdown, 1000);
@@ -152,11 +152,17 @@ function startRecording() {
 
 function setupDeepgram() {
   fetch('https://mood-into-art-backend.onrender.com/deepgram-token')
-    .then(res => res.json())
+    .then(res => {
+      if (!res.ok) {
+        throw new Error(`Failed to fetch Deepgram token: ${res.statusText}`);
+      }
+      return res.json();
+    })
     .then(({ token }) => {
       socket = new WebSocket(`wss://api.deepgram.com/v1/listen?access_token=${token}`);
 
       socket.onopen = () => {
+        console.log("Deepgram WebSocket opened successfully");
         navigator.mediaDevices.getUserMedia({ audio: true }).then(stream => {
           recorder = new MediaRecorder(stream);
           recorder.ondataavailable = e => {
@@ -165,6 +171,10 @@ function setupDeepgram() {
             }
           };
           recorder.start(250);
+        }).catch(err => {
+          console.error("Deepgram mic access error:", err);
+          alert("Deepgram failed to access microphone. Falling back to Web Speech API.");
+          setupWebSpeechAPI();
         });
       };
 
@@ -174,12 +184,16 @@ function setupDeepgram() {
         if (text && text.length > 0) {
           transcriptBuffer += (transcriptBuffer && !transcriptBuffer.endsWith(" ") ? " " : "") + text;
           document.getElementById('activityInput').value = transcriptBuffer;
+        } else {
+          console.log("Deepgram received message, but no transcript:", data);
         }
       };
 
       socket.onerror = err => {
-        console.error('Deepgram error:', err);
+        console.error('Deepgram WebSocket error:', err);
         stopRecording();
+        alert("Deepgram WebSocket error. Falling back to Web Speech API.");
+        setupWebSpeechAPI();
       };
 
       socket.onclose = () => {
@@ -188,9 +202,10 @@ function setupDeepgram() {
       };
     })
     .catch(err => {
-      console.error("Deepgram token error:", err);
-      alert("Could not connect to Deepgram");
+      console.error("Deepgram token fetch error:", err);
+      alert("Could not connect to Deepgram. Falling back to Web Speech API.");
       stopRecording();
+      setupWebSpeechAPI();
     });
 }
 
@@ -198,10 +213,9 @@ function stopRecording() {
   isRecording = false;
   const startVoiceButton = document.getElementById('startVoice');
   startVoiceButton.textContent = 'Start Voice';
-  // Revert button to original cyan style
-  startVoiceButton.style.backgroundColor = '#00CED1';
-  startVoiceButton.style.color = 'white';
-  startVoiceButton.style.borderColor = '#00CED1';
+  startVoiceButton.style.backgroundColor = '#00CED1 !important';
+  startVoiceButton.style.color = 'white !important';
+  startVoiceButton.style.borderColor = '#00CED1 !important';
   if (recognition) recognition.stop();
   if (recorder && recorder.state !== 'inactive') recorder.stop();
   if (socket && socket.readyState === WebSocket.OPEN) socket.close();
@@ -216,90 +230,4 @@ function stopRecording() {
   console.log("Stopping - Transcript:", mood);
 }
 
-function updateCountdown() {
-  countdown--;
-  document.getElementById('countdownDisplay').textContent = `00:${countdown.toString().padStart(2, '0')}`;
-  if (countdown <= 0) stopRecording();
-}
-
-// === Button bindings ===
-document.getElementById('startVoice').addEventListener('click', () => {
-  isRecording ? stopRecording() : startRecording();
-});
-
-document.getElementById('redo').addEventListener('click', () => {
-  document.getElementById('activityInput').value = '';
-  hasGenerated = false;
-  console.log("Redo - Text cleared, ready for new recording");
-});
-
-document.getElementById('generate').addEventListener('click', async () => {
-  if (hasGenerated) {
-    console.log("Generate skipped - Image already generated");
-    alert("Image already generated. Use Redo to start over.");
-    return;
-  }
-
-  const mood = document.getElementById('activityInput').value;
-  let style = document.getElementById('styleSelect').value;
-  const image = document.getElementById('generatedImage');
-  const thinking = document.getElementById('thinking');
-
-  if (!mood) {
-    console.warn("Generate - No mood text");
-    alert("Please record some audio first!");
-    return;
-  }
-  if (style === 'none') {
-    console.warn("Generate - No style selected");
-    alert("Please select an art style!");
-    return;
-  }
-
-  console.log("Generating - Mood:", mood, "Style:", style);
-  startGeneratingDots();
-  thinking.style.display = 'block';
-
-  try {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 20000);
-    const res = await fetch('https://mood-into-art-backend.onrender.com/generate', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ prompt: `${mood} in ${style} style` }),
-      signal: controller.signal
-    });
-    clearTimeout(timeout);
-
-    const data = await res.json();
-    console.log("Response:", data);
-    if (data.image) {
-      image.src = `data:image/png;base64,${data.image}`;
-      image.style.display = 'block';
-      hasGenerated = true;
-
-      const history = document.getElementById('moodHistory');
-      const entry = document.createElement('div');
-      entry.className = 'history-entry';
-
-      const text = document.createElement('span');
-      text.textContent = `${new Date().toLocaleString()} — ${mood} [${style}]`;
-      entry.appendChild(text);
-
-      const del = document.createElement('button');
-      del.textContent = 'Delete';
-      del.addEventListener('click', () => history.removeChild(entry));
-      entry.appendChild(del);
-
-      history.prepend(entry);
-    } else {
-      console.warn("No image in response");
-      alert("No image received from server");
-    }
-  } catch (err) {
-    console.error('Error generating image:', err);
-    alert("Failed to generate image. Check your internet or try again.");
-  } finally {
-    stopThinkingText();
-  }
-});
+function update
