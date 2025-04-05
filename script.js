@@ -13,6 +13,7 @@ let recognition = null;
 let transcriptBuffer = "";
 let recorder = null;
 let socket = null;
+let hasGenerated = false; // New flag to track if image has been generated
 
 const canvas = document.getElementById('waveform');
 const ctx = canvas.getContext('2d');
@@ -190,7 +191,7 @@ function setupDeepgram() {
 
 function stopRecording() {
   isRecording = false;
-  document.getElementById('startVoice').textContent = 'Start Voice';
+  document.getElementByUnitId('startVoice').textContent = 'Start Voice';
   if (recognition) recognition.stop();
   if (recorder && recorder.state !== 'inactive') recorder.stop();
   if (socket && socket.readyState === WebSocket.OPEN) socket.close();
@@ -201,7 +202,6 @@ function stopRecording() {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
   stopThinkingText();
   
-  // Log state before triggering
   const mood = document.getElementById('activityInput').value;
   console.log("Stopping - Transcript:", mood);
   triggerImageGeneration();
@@ -238,16 +238,19 @@ document.getElementById('startVoice').addEventListener('click', () => {
 });
 
 document.getElementById('redo').addEventListener('click', () => {
-  stopRecording();
+  // Only clear the text box and reset generation flag
   document.getElementById('activityInput').value = '';
-  document.getElementById('styleSelect').value = 'none';
-  const image = document.getElementById('generatedImage');
-  image.src = '';
-  image.style.display = 'none';
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  hasGenerated = false; // Allow generating a new image after redo
+  console.log("Redo - Text cleared, ready for new recording");
 });
 
 document.getElementById('generate').addEventListener('click', async () => {
+  if (hasGenerated) {
+    console.log("Generate skipped - Image already generated");
+    alert("Image already generated. Use Redo to start over.");
+    return;
+  }
+
   const mood = document.getElementById('activityInput').value;
   const style = document.getElementById('styleSelect').value;
   const image = document.getElementById('generatedImage');
@@ -269,10 +272,11 @@ document.getElementById('generate').addEventListener('click', async () => {
     clearTimeout(timeout);
 
     const data = await res.json();
-    console.log("Response:", data); // Log backend response
+    console.log("Response:", data);
     if (data.image) {
       image.src = `data:image/png;base64,${data.image}`;
       image.style.display = 'block';
+      hasGenerated = true; // Set flag after successful generation
 
       const history = document.getElementById('moodHistory');
       const entry = document.createElement('div');
