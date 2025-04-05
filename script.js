@@ -1,4 +1,4 @@
-// === Mood Into Art with Dual Transcription: Deepgram (iOS) + Web Speech API (desktop) ===
+// === Mood Into Art with Dual Transcription: Deepgram (iOS) + Web Speech API (desktop) + UX Enhancements ===
 
 const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
 if (isIOS && window.top !== window.self) {
@@ -63,7 +63,7 @@ function drawWaveform() {
   ctx.stroke();
 }
 
-function startListeningText() {
+function showListeningText() {
   const thinking = document.getElementById('thinking');
   if (thinking) {
     thinking.textContent = 'Listening';
@@ -129,7 +129,7 @@ function startRecording() {
       countdown = 60;
       document.getElementById('countdownDisplay').textContent = `00:${countdown}`;
       countdownInterval = setInterval(updateCountdown, 1000);
-      startListeningText();
+      showListeningText();
       setupWaveform();
 
       if (isIOS) {
@@ -238,8 +238,8 @@ document.getElementById('generate').addEventListener('click', async () => {
   const thinking = document.getElementById('thinking');
   if (!mood || style === 'none') return;
 
-  thinking.style.display = 'block';
   startGeneratingDots();
+  thinking.style.display = 'block';
 
   try {
     const res = await fetch('https://mood-into-art-backend.onrender.com/generate', {
@@ -252,6 +252,21 @@ document.getElementById('generate').addEventListener('click', async () => {
     if (data.image) {
       image.src = `data:image/png;base64,${data.image}`;
       image.style.display = 'block';
+
+      const history = document.getElementById('moodHistory');
+      const entry = document.createElement('div');
+      entry.className = 'history-entry';
+
+      const text = document.createElement('span');
+      text.textContent = `${new Date().toLocaleString()} — ${mood} [${style}]`;
+      entry.appendChild(text);
+
+      const del = document.createElement('button');
+      del.textContent = 'Delete';
+      del.addEventListener('click', () => history.removeChild(entry));
+      entry.appendChild(del);
+
+      history.prepend(entry);
     } else {
       alert("No image received");
     }
