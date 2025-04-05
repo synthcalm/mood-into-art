@@ -77,7 +77,7 @@ select#styleSelect {
   cursor: pointer;
 }
 
-/* Updated recording class for Start Voice button */
+/* Recording class for Start Voice button */
 .button.recording {
   background: #000 !important;
   border-color: #ff00ff !important; /* Magenta border */
