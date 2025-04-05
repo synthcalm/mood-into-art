@@ -19,6 +19,22 @@ const canvas = document.getElementById('waveform');
 const ctx = canvas.getContext('2d');
 let audioContext, analyser, dataArray, source;
 
+// Function to update the date and time in real-time
+function updateDateTime() {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, '0'); // Months are 0-based
+  const day = String(now.getDate()).padStart(2, '0');
+  const hours = String(now.getHours()).padStart(2, '0');
+  const minutes = String(now.getMinutes()).padStart(2, '0');
+  const seconds = String(now.getSeconds()).padStart(2, '0');
+  const dateTimeString = `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
+  document.getElementById('dateTimeDisplay').textContent = dateTimeString;
+}
+
+// Run updateDateTime every second
+setInterval(updateDateTime, 1000);
+
 function setupWaveform() {
   audioContext = new (window.AudioContext || window.webkitAudioContext)();
   analyser = audioContext.createAnalyser();
@@ -225,124 +241,4 @@ function setupDeepgram() {
     })
     .catch(err => {
       console.error("Deepgram token fetch error:", err);
-      alert("Could not connect to Deepgram. Falling back to Web Speech API.");
-      stopRecording();
-      setupWebSpeechAPI();
-    });
-}
-
-function stopRecording() {
-  isRecording = false;
-  const startVoiceButton = document.getElementById('startVoice');
-  startVoiceButton.textContent = 'Start Voice';
-  startVoiceButton.classList.remove('recording');
-  if (recognition) recognition.stop();
-  if (recorder && recorder.state !== 'inactive') recorder.stop();
-  if (socket && socket.readyState === WebSocket.OPEN) socket.close();
-  if (audioContext && audioContext.state !== 'closed') audioContext.close();
-  clearInterval(countdownInterval);
-  countdown = 60;
-  document.getElementById('countdownDisplay').textContent = `00:${countdown}`;
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
-  stopThinkingText();
-  
-  const mood = document.getElementById('activityInput').value;
-  console.log("Stopping - Transcript:", mood);
-}
-
-function updateCountdown() {
-  countdown--;
-  document.getElementById('countdownDisplay').textContent = `00:${countdown.toString().padStart(2, '0')}`;
-  if (countdown <= 0) stopRecording();
-}
-
-// === Button bindings ===
-document.addEventListener('DOMContentLoaded', () => {
-  // Start Voice button
-  document.getElementById('startVoice').addEventListener('click', () => {
-    isRecording ? stopRecording() : startRecording();
-  });
-
-  // Clear button
-  document.getElementById('clear').addEventListener('click', () => {
-    document.getElementById('activityInput').value = '';
-    hasGenerated = false;
-    console.log("Clear - Text cleared, ready for new recording");
-  });
-
-  // Generate Image button
-  document.getElementById('generate').addEventListener('click', async () => {
-    if (hasGenerated) {
-      console.log("Generate skipped - Image already generated");
-      alert("Image already generated. Use Clear to start over.");
-      return;
-    }
-
-    const mood = document.getElementById('activityInput').value;
-    let style = document.getElementById('styleSelect').value;
-    const image = document.getElementById('generatedImage');
-    const thinking = document.getElementById('thinking');
-
-    if (!mood) {
-      console.warn("Generate - No mood text");
-      alert("Please record some audio first!");
-      return;
-    }
-    if (style === 'none') {
-      console.warn("Generate - No style selected");
-      alert("Please select an art style!");
-      return;
-    }
-
-    console.log("Generating - Mood:", mood, "Style:", style);
-    startGeneratingDots();
-    thinking.style.display = 'block';
-
-    try {
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 20000);
-      const res = await fetch('https://mood-into-art-backend.onrender.com/generate', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ prompt: `${mood} in ${style} style` }),
-        signal: controller.signal
-      });
-      clearTimeout(timeout);
-
-      if (!res.ok) {
-        throw new Error(`HTTP error! Status: ${res.status}`);
-      }
-
-      const data = await res.json();
-      console.log("Response:", data);
-      if (data.image) {
-        image.src = `data:image/png;base64,${data.image}`;
-        image.style.display = 'block';
-        hasGenerated = true;
-
-        const history = document.getElementById('moodHistory');
-        const entry = document.createElement('div');
-        entry.className = 'history-entry';
-
-        const text = document.createElement('span');
-        text.textContent = `${new Date().toLocaleString()} — ${mood} [${style}]`;
-        entry.appendChild(text);
-
-        const del = document.createElement('button');
-        del.textContent = 'Delete';
-        del.addEventListener('click', () => history.removeChild(entry));
-        entry.appendChild(del);
-
-        history.prepend(entry);
-      } else {
-        console.warn("No image in response");
-        alert("No image received from server");
-      }
-    } catch (err) {
-      console.error('Error generating image:', err);
-      alert("Failed to generate image. Check your internet or try again.");
-    } finally {
-      stopThinkingText();
-    }
-  });
-});
+      alert("Could not connect to Deepgram. Falling back to Web Speech
