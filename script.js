@@ -1,22 +1,16 @@
-// === iOS-Ready Version: Mood Into Art with Deepgram + AssemblyAI ===
-// ✅ Deepgram on iOS (Safari)
-// ✅ AssemblyAI on other platforms
-// ✅ Displays waveform, countdown, transcription, and animated thinking dots
-// ✅ Auto-generates image when recording stops
+// === Mood Into Art with Dual Transcription: Deepgram (iOS) + Web Speech API (desktop) ===
 
 const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
 if (isIOS && window.top !== window.self) {
-  alert("🔓 To use the microphone, please open this page in full Safari tab (not embedded in another app or iframe).");
+  alert("🔓 To use the microphone, please open this page in full Safari tab (not embedded in another app or iframe).\n");
 }
 
 let isRecording = false;
-let socket = null;
 let countdown = 60;
 let countdownInterval = null;
 let thinkingInterval = null;
-let recorder = null;
+let recognition = null;
 let transcriptBuffer = "";
-let recorderStream = null;
 
 const canvas = document.getElementById('waveform');
 const ctx = canvas.getContext('2d');
@@ -88,64 +82,34 @@ function stopThinkingAnimation() {
   thinking.style.display = 'none';
 }
 
-async function setupTranscription() {
-  const endpoint = isIOS 
-    ? 'https://mood-into-art-backend.onrender.com/deepgram-token' 
-    : 'https://mood-into-art-backend.onrender.com/assemblyai-token';
-
-  try {
-    const res = await fetch(endpoint);
-    if (!res.ok) throw new Error('Token request failed');
-    const { token } = await res.json();
-    console.log("🎫 Token received");
-
-    socket = new WebSocket(
-      isIOS
-        ? `wss://api.deepgram.com/v1/listen?access_token=${token}`
-        : `wss://api.assemblyai.com/v2/realtime/ws?sample_rate=16000&token=${token}`
-    );
-
-    socket.addEventListener('open', () => {
-      console.log("📡 WebSocket connection opened");
-      navigator.mediaDevices.getUserMedia({ audio: true }).then(stream => {
-        recorderStream = stream;
-        recorder = new MediaRecorder(stream, { mimeType: 'audio/webm' });
-        recorder.addEventListener('dataavailable', e => {
-          if (socket && socket.readyState === WebSocket.OPEN) {
-            socket.send(e.data);
-          }
-        });
-        recorder.start(250);
-      });
-    });
-
-    socket.addEventListener('message', e => {
-      const data = JSON.parse(e.data);
-      const text = isIOS
-        ? data.channel?.alternatives?.[0]?.transcript
-        : data.text;
-
-      if (text && text.length > 0) {
-        transcriptBuffer += (transcriptBuffer && !transcriptBuffer.endsWith(" ") ? " " : "") + text;
-        document.getElementById('activityInput').value = transcriptBuffer;
-      }
-    });
-
-    socket.addEventListener('error', err => {
-      console.error('WebSocket error:', err);
-      stopRecording();
-    });
-
-    socket.addEventListener('close', () => {
-      console.warn("🔌 WebSocket closed");
-      socket = null;
-    });
-
-  } catch (err) {
-    console.error('Transcription setup error:', err);
-    alert('Failed to setup transcription');
-    stopRecording();
+function setupWebSpeechAPI() {
+  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SpeechRecognition) {
+    alert("Web Speech API not supported in this browser");
+    return;
   }
+
+  recognition = new SpeechRecognition();
+  recognition.continuous = true;
+  recognition.interimResults = true;
+  recognition.lang = 'en-US';
+
+  recognition.onresult = event => {
+    const transcript = Array.from(event.results).map(r => r[0].transcript).join('');
+    document.getElementById('activityInput').value = transcript;
+  };
+
+  recognition.onerror = err => {
+    console.error('🎤 Web Speech API error:', err);
+    alert('Speech recognition failed.');
+    stopRecording();
+  };
+
+  recognition.onend = () => {
+    if (isRecording) recognition.start();
+  };
+
+  recognition.start();
 }
 
 function startRecording() {
@@ -159,27 +123,67 @@ function startRecording() {
       document.getElementById('countdownDisplay').textContent = `00:${countdown}`;
       countdownInterval = setInterval(updateCountdown, 1000);
       startThinkingAnimation();
-      setupTranscription();
       setupWaveform();
+
+      if (isIOS) {
+        setupDeepgram();
+      } else {
+        setupWebSpeechAPI();
+      }
     })
-    .catch((err) => {
+    .catch(err => {
       console.error("❌ Mic access denied:", err);
       alert('Microphone access denied. Please check browser and OS settings.');
+    });
+}
+
+function setupDeepgram() {
+  fetch('https://mood-into-art-backend.onrender.com/deepgram-token')
+    .then(res => res.json())
+    .then(({ token }) => {
+      const socket = new WebSocket(`wss://api.deepgram.com/v1/listen?access_token=${token}`);
+
+      socket.onopen = () => {
+        navigator.mediaDevices.getUserMedia({ audio: true }).then(stream => {
+          const recorder = new MediaRecorder(stream);
+          recorder.ondataavailable = e => {
+            if (socket.readyState === WebSocket.OPEN) {
+              socket.send(e.data);
+            }
+          };
+          recorder.start(250);
+        });
+      };
+
+      socket.onmessage = e => {
+        const data = JSON.parse(e.data);
+        const text = data.channel?.alternatives?.[0]?.transcript;
+        if (text && text.length > 0) {
+          transcriptBuffer += (transcriptBuffer && !transcriptBuffer.endsWith(" ") ? " " : "") + text;
+          document.getElementById('activityInput').value = transcriptBuffer;
+        }
+      };
+
+      socket.onerror = err => {
+        console.error('Deepgram error:', err);
+        stopRecording();
+      };
+
+      socket.onclose = () => {
+        console.log("🔌 Deepgram WebSocket closed");
+      };
+    })
+    .catch(err => {
+      console.error("Deepgram token error:", err);
+      alert("Could not connect to Deepgram");
+      stopRecording();
     });
 }
 
 function stopRecording() {
   isRecording = false;
   document.getElementById('startVoice').textContent = 'Start Voice';
-
-  if (recorder && recorder.state !== 'inactive') {
-    recorder.stop();
-  }
-  if (recorderStream) {
-    recorderStream.getTracks().forEach(track => track.stop());
-    recorderStream = null;
-  }
-  if (socket) socket.close();
+  if (recognition) recognition.stop();
   if (audioContext) audioContext.close();
   clearInterval(countdownInterval);
   countdown = 60;
