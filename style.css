@@ -16,7 +16,6 @@ body {
   padding: 20px;
   border: 2px solid #0ff;
   border-radius: 12px;
-  box-sizing: border-box;
 }
 
 canvas#waveform {
@@ -44,14 +43,18 @@ textarea, select, .button {
   padding: 10px;
   margin-bottom: 10px;
   text-align: center;
-  box-sizing: border-box;
 }
 
-select#styleSelect,
-select#styleSelect option {
+/* Style dropdown fix: center text on all browsers including iOS */
+select#styleSelect {
   text-align: center;
   text-align-last: center;
   -moz-text-align-last: center;
+  -webkit-appearance: none;
+  appearance: none;
+  background-position: right 10px center;
+  background-repeat: no-repeat;
+  padding-right: 30px;
 }
 
 .button-group {
@@ -61,13 +64,12 @@ select#styleSelect option {
 }
 
 .button {
-  transition: all 0.3s ease;
+  cursor: pointer;
 }
 
 .button:hover {
   background: #0ff;
   color: #000;
-  cursor: pointer;
 }
 
 .seven-segment {
@@ -103,22 +105,31 @@ select#styleSelect option {
   height: 20px;
 }
 
-/* Optional: style for the delete button in mood history */
+/* Mood History entries */
+#moodHistory {
+  margin-top: 10px;
+  font-size: 13px;
+  color: #0ff;
+}
+
 .history-entry {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  background: #000;
-  border: 1px solid #0ff;
-  padding: 6px 10px;
-  margin: 5px 0;
-  font-size: 13px;
+  margin-bottom: 6px;
+  gap: 8px;
 }
 
 .history-entry button {
   background: transparent;
-  border: 1px solid #f00;
-  color: #f00;
+  border: 1px solid #0ff;
+  color: #0ff;
+  padding: 2px 8px;
   cursor: pointer;
   font-size: 12px;
+}
+
+.history-entry button:hover {
+  background: #0ff;
+  color: #000;
 }
