@@ -1,8 +1,10 @@
+
 // === Mood Into Art with Dual Transcription: Deepgram (iOS) + Web Speech API (desktop) ===
 
 const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
 if (isIOS && window.top !== window.self) {
-  alert("🔓 To use the microphone, please open this page in full Safari tab (not embedded in another app or iframe).\n");
+  alert("🔓 To use the microphone, please open this page in full Safari tab (not embedded in another app or iframe).
+");
 }
 
 let isRecording = false;
@@ -97,7 +99,7 @@ function setupWebSpeechAPI() {
   recognition.onresult = event => {
     const transcript = Array.from(event.results).map(r => r[0].transcript).join('');
     document.getElementById('activityInput').value = transcript;
-    transcriptBuffer = transcript; // Keep in sync for auto-generate
+    transcriptBuffer = transcript;
   };
 
   recognition.onerror = err => {
