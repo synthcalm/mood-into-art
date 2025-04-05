@@ -1,6 +1,7 @@
-// === Mood Into Art with Dual Transcription: Deepgram (iOS) + Web Speech API (desktop) + UX Enhancements ===
+// === Mood Into Art with Web Speech API Transcription for All Devices ===
 
 const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+const isIPad = /iPad/.test(navigator.userAgent); // For logging purposes
 if (isIOS && window.top !== window.self) {
   alert("🔓 To use the microphone, please open this page in a full Safari tab (not embedded in another app or iframe).\n");
 }
@@ -11,8 +12,6 @@ let countdownInterval = null;
 let thinkingInterval = null;
 let recognition = null;
 let transcriptBuffer = "";
-let recorder = null;
-let socket = null;
 let hasGenerated = false;
 
 const canvas = document.getElementById('waveform');
@@ -173,7 +172,7 @@ function setupWebSpeechAPI() {
 }
 
 function startRecording() {
-  console.log("Device type:", isIOS ? "iOS" : "Desktop");
+  console.log("Device type:", isIOS ? (isIPad ? "iPad" : "iPhone/iPod") : "Desktop");
   navigator.mediaDevices.getUserMedia({ audio: true })
     .then(() => {
       isRecording = true;
@@ -188,86 +187,13 @@ function startRecording() {
       showListeningText();
       setupWaveform();
 
-      if (isIOS) {
-        console.log("Attempting to use Deepgram for iOS...");
-        setupDeepgram();
-      } else {
-        console.log("Using Web Speech API for desktop...");
-        setupWebSpeechAPI();
-      }
+      console.log("Transcription method: Web Speech API (used for all devices)");
+      setupWebSpeechAPI();
     })
     .catch(err => {
       console.error("❌ Mic access denied:", err);
       alert('Microphone access denied. Please check browser and OS settings.');
       stopRecording();
-    });
-}
-
-function setupDeepgram() {
-  fetch('https://mood-into-art-backend.onrender.com/deepgram-token')
-    .then(res => {
-      if (!res.ok) {
-        throw new Error(`Failed to fetch Deepgram token: ${res.statusText}`);
-      }
-      return res.json();
-    })
-    .then(({ token }) => {
-      socket = new WebSocket(`wss://api.deepgram.com/v1/listen?access_token=${token}`);
-
-      socket.onopen = () => {
-        console.log("Deepgram WebSocket opened successfully");
-        navigator.mediaDevices.getUserMedia({ audio: true })
-          .then(stream => {
-            recorder = new MediaRecorder(stream);
-            recorder.ondataavailable = e => {
-              if (socket && socket.readyState === WebSocket.OPEN) {
-                socket.send(e.data);
-              }
-            };
-            recorder.start(250);
-            console.log("Deepgram recording started");
-          })
-          .catch(err => {
-            console.error("Deepgram mic access error:", err);
-            alert("Deepgram failed to access microphone. Falling back to Web Speech API.");
-            setupWebSpeechAPI();
-          });
-      };
-
-      socket.onmessage = e => {
-        const data = JSON.parse(e.data);
-        const text = data.channel?.alternatives?.[0]?.transcript;
-        if (text && text.length > 0) {
-          transcriptBuffer += (transcriptBuffer && !transcriptBuffer.endsWith(" ") ? " " : "") + text;
-          document.getElementById('activityInput').value = transcriptBuffer;
-          console.log("Deepgram transcript:", text);
-        } else {
-          console.log("Deepgram received message, but no transcript:", data);
-        }
-      };
-
-      socket.onerror = err => {
-        console.error('Deepgram WebSocket error:', err);
-        stopRecording();
-        alert("Deepgram WebSocket error. Falling back to Web Speech API.");
-        setupWebSpeechAPI();
-      };
-
-      socket.onclose = () => {
-        console.log("🔌 Deepgram WebSocket closed");
-        socket = null;
-        // If recording is still active, fall back to Web Speech API
-        if (isRecording) {
-          console.log("Deepgram closed unexpectedly. Falling back to Web Speech API.");
-          setupWebSpeechAPI();
-        }
-      };
-    })
-    .catch(err => {
-      console.error("Deepgram token fetch error:", err);
-      alert("Could not connect to Deepgram. Falling back to Web Speech API.");
-      stopRecording();
-      setupWebSpeechAPI();
     });
 }
 
@@ -277,8 +203,6 @@ function stopRecording() {
   startVoiceButton.textContent = 'Start Voice';
   startVoiceButton.classList.remove('recording');
   if (recognition) recognition.stop();
-  if (recorder && recorder.state !== 'inactive') recorder.stop();
-  if (socket && socket.readyState === WebSocket.OPEN) socket.close();
   if (audioContext && audioContext.state !== 'closed') audioContext.close();
   clearInterval(countdownInterval);
   countdown = 60;
