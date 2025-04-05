@@ -50,9 +50,7 @@ function drawWaveform() {
   ctx.beginPath();
 
   const sliceWidth = canvas.width / dataArray.length;
-  let x = 
-   
-0;
+  let x = 0;
 
   for (let i = 0; i < dataArray.length; i++) {
     const v = dataArray[i] / 128.0;
@@ -206,35 +204,13 @@ function stopRecording() {
   
   const mood = document.getElementById('activityInput').value;
   console.log("Stopping - Transcript:", mood);
-  triggerImageGeneration();
+  // Removed triggerImageGeneration() call
 }
 
 function updateCountdown() {
   countdown--;
   document.getElementById('countdownDisplay').textContent = `00:${countdown.toString().padStart(2, '0')}`;
   if (countdown <= 0) stopRecording();
-}
-
-function triggerImageGeneration() {
-  const mood = document.getElementById('activityInput').value;
-  let style = document.getElementById('styleSelect').value;
-  
-  // Fallback to a default style if none selected
-  if (style === 'none') {
-    style = 'abstract'; // Default style
-    document.getElementById('styleSelect').value = style;
-    console.log("No style selected, defaulting to:", style);
-  }
-  
-  console.log("Triggering - Mood:", mood, "Style:", style);
-  
-  if (!mood) {
-    console.warn("No mood text available for image generation");
-    alert("Please record some audio first!");
-    return;
-  }
-  
-  document.getElementById('generate').click();
 }
 
 // === Button bindings ===
@@ -256,7 +232,7 @@ document.getElementById('generate').addEventListener('click', async () => {
   }
 
   const mood = document.getElementById('activityInput').value;
-  const style = document.getElementById('styleSelect').value;
+  let style = document.getElementById('styleSelect').value;
   const image = document.getElementById('generatedImage');
   const thinking = document.getElementById('thinking');
 
@@ -266,17 +242,18 @@ document.getElementById('generate').addEventListener('click', async () => {
     return;
   }
   if (style === 'none') {
-    console.warn("Generate - No style selected");
-    alert("Please select an art style!");
-    return;
+    style = 'abstract'; // Default to abstract if no style selected
+    document.getElementById('styleSelect').value = style;
+    console.log("Generate - No style selected, defaulting to:", style);
   }
 
+  console.log("Generating - Mood:", mood, "Style:", style);
   startGeneratingDots();
   thinking.style.display = 'block';
 
   try {
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 15000); // Increased to 15s
+    const timeout = setTimeout(() => controller.abort(), 20000); // Increased to 20s
     const res = await fetch('https://mood-into-art-backend.onrender.com/generate', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
