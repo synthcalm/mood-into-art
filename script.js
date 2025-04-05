@@ -63,20 +63,25 @@ function drawWaveform() {
   ctx.stroke();
 }
 
-function startThinkingAnimation() {
+function startListeningText() {
+  const thinking = document.getElementById('thinking');
+  if (thinking) {
+    thinking.textContent = 'Listening';
+    thinking.style.display = 'block';
+  }
+}
+
+function startGeneratingDots() {
   const thinking = document.getElementById('thinking');
   if (!thinking) return;
   let dotCount = 0;
-  thinking.style.display = 'block';
-  thinking.textContent = 'Listening';
-
   thinkingInterval = setInterval(() => {
     dotCount = (dotCount + 1) % 5;
-    thinking.textContent = 'Listening' + '.'.repeat(dotCount);
+    thinking.textContent = 'Generating' + '.'.repeat(dotCount);
   }, 500);
 }
 
-function stopThinkingAnimation() {
+function stopThinkingText() {
   const thinking = document.getElementById('thinking');
   if (!thinking) return;
   clearInterval(thinkingInterval);
@@ -99,12 +104,11 @@ function setupWebSpeechAPI() {
   recognition.onresult = event => {
     const transcript = Array.from(event.results).map(r => r[0].transcript).join('');
     document.getElementById('activityInput').value = transcript;
-    transcriptBuffer = transcript; // Keep in sync for auto-generate
+    transcriptBuffer = transcript;
   };
 
   recognition.onerror = err => {
     console.error('🎤 Web Speech API error:', err);
-    alert('Speech recognition failed.');
     stopRecording();
   };
 
@@ -125,7 +129,7 @@ function startRecording() {
       countdown = 60;
       document.getElementById('countdownDisplay').textContent = `00:${countdown}`;
       countdownInterval = setInterval(updateCountdown, 1000);
-      startThinkingAnimation();
+      startListeningText();
       setupWaveform();
 
       if (isIOS) {
@@ -195,7 +199,7 @@ function stopRecording() {
   countdown = 60;
   document.getElementById('countdownDisplay').textContent = `00:${countdown}`;
   ctx.clearRect(0, 0, canvas.width, canvas.height);
-  stopThinkingAnimation();
+  stopThinkingText();
   triggerImageGeneration();
 }
 
@@ -235,7 +239,7 @@ document.getElementById('generate').addEventListener('click', async () => {
   if (!mood || style === 'none') return;
 
   thinking.style.display = 'block';
-  thinking.textContent = 'Generating...';
+  startGeneratingDots();
 
   try {
     const res = await fetch('https://mood-into-art-backend.onrender.com/generate', {
@@ -255,6 +259,6 @@ document.getElementById('generate').addEventListener('click', async () => {
     console.error('Error generating image:', err);
     alert("Failed to generate image.");
   } finally {
-    thinking.style.display = 'none';
+    stopThinkingText();
   }
 });
