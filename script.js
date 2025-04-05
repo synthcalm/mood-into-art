@@ -43,7 +43,7 @@ function drawWaveform() {
   requestAnimationFrame(drawWaveform);
   analyser.getByteTimeDomainData(dataArray);
 
-  ctx.fillStyle = '#000';
+  ctx.fillStyle = '#00CED1'; // Match the background color from the screenshot
   ctx.fillRect(0, 0, canvas.width, canvas.height);
   ctx.lineWidth = 2;
   ctx.strokeStyle = '#ff0';
@@ -126,7 +126,9 @@ function startRecording() {
       isRecording = true;
       transcriptBuffer = "";
       document.getElementById('activityInput').value = "";
-      document.getElementById('startVoice').textContent = 'Stop Voice';
+      const startVoiceButton = document.getElementById('startVoice');
+      startVoiceButton.textContent = 'Stop Voice';
+      startVoiceButton.style.backgroundColor = 'red'; // Turn button red during recording
       countdown = 60;
       document.getElementById('countdownDisplay').textContent = `00:${countdown}`;
       countdownInterval = setInterval(updateCountdown, 1000);
@@ -191,7 +193,9 @@ function setupDeepgram() {
 
 function stopRecording() {
   isRecording = false;
-  document.getElementById('startVoice').textContent = 'Start Voice';
+  const startVoiceButton = document.getElementById('startVoice');
+  startVoiceButton.textContent = 'Start Voice';
+  startVoiceButton.style.backgroundColor = '#00CED1'; // Revert to original cyan color
   if (recognition) recognition.stop();
   if (recorder && recorder.state !== 'inactive') recorder.stop();
   if (socket && socket.readyState === WebSocket.OPEN) socket.close();
@@ -204,7 +208,6 @@ function stopRecording() {
   
   const mood = document.getElementById('activityInput').value;
   console.log("Stopping - Transcript:", mood);
-  // Removed triggerImageGeneration() call
 }
 
 function updateCountdown() {
@@ -242,9 +245,9 @@ document.getElementById('generate').addEventListener('click', async () => {
     return;
   }
   if (style === 'none') {
-    style = 'abstract'; // Default to abstract if no style selected
-    document.getElementById('styleSelect').value = style;
-    console.log("Generate - No style selected, defaulting to:", style);
+    console.warn("Generate - No style selected");
+    alert("Please select an art style!");
+    return;
   }
 
   console.log("Generating - Mood:", mood, "Style:", style);
@@ -253,7 +256,7 @@ document.getElementById('generate').addEventListener('click', async () => {
 
   try {
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 20000); // Increased to 20s
+    const timeout = setTimeout(() => controller.abort(), 20000); // 20s timeout
     const res = await fetch('https://mood-into-art-backend.onrender.com/generate', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
