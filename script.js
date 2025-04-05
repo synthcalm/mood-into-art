@@ -40,6 +40,7 @@ function setupWaveform() {
 
 function drawWaveform() {
   if (!isRecording) return;
+  console.log("Drawing waveform...");
   requestAnimationFrame(drawWaveform);
   analyser.getByteTimeDomainData(dataArray);
 
@@ -152,6 +153,7 @@ function startRecording() {
       document.getElementById('activityInput').value = "";
       const startVoiceButton = document.getElementById('startVoice');
       startVoiceButton.textContent = 'Stop Voice';
+      // Ensure the button turns red when engaged
       startVoiceButton.style.backgroundColor = 'red !important';
       startVoiceButton.style.color = 'white !important';
       startVoiceButton.style.borderColor = 'red !important';
@@ -236,6 +238,7 @@ function stopRecording() {
   isRecording = false;
   const startVoiceButton = document.getElementById('startVoice');
   startVoiceButton.textContent = 'Start Voice';
+  // Revert button to original cyan style
   startVoiceButton.style.backgroundColor = '#00CED1 !important';
   startVoiceButton.style.color = 'white !important';
   startVoiceButton.style.borderColor = '#00CED1 !important';
