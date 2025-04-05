@@ -55,16 +55,31 @@ textarea#activityInput {
   font-size: 14px;
 }
 
-/* Style dropdown fix: center text on all browsers including iOS */
+/* Style dropdown fix: center text on all browsers including iPad */
 select#styleSelect {
   text-align: center;
   text-align-last: center;
+  -webkit-text-align-last: center; /* For iPadOS Safari */
   -moz-text-align-last: center;
   -webkit-appearance: none;
+  -moz-appearance: none;
   appearance: none;
   background-position: right 10px center;
   background-repeat: no-repeat;
   padding-right: 30px;
+  padding-left: 10px; /* Ensure padding is balanced */
+  font-family: 'Courier New', monospace;
+  font-size: 14px;
+  line-height: normal; /* Ensure consistent line height */
+  display: block; /* Ensure consistent rendering */
+  box-sizing: border-box; /* Ensure padding doesn't affect width */
+}
+
+/* Ensure options are also centered */
+select#styleSelect option {
+  text-align: center;
+  font-family: 'Courier New', monospace;
+  font-size: 14px;
 }
 
 .button-group {
