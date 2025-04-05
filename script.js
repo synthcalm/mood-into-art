@@ -257,83 +257,92 @@ function updateCountdown() {
 }
 
 // === Button bindings ===
-document.getElementById('startVoice').addEventListener('click', () => {
-  isRecording ? stopRecording() : startRecording();
-});
+document.addEventListener('DOMContentLoaded', () => {
+  // Start Voice button
+  document.getElementById('startVoice').addEventListener('click', () => {
+    isRecording ? stopRecording() : startRecording();
+  });
 
-document.getElementById('clear').addEventListener('click', () => {
-  document.getElementById('activityInput').value = '';
-  hasGenerated = false;
-  console.log("Clear - Text cleared, ready for new recording");
-});
+  // Clear button
+  document.getElementById('clear').addEventListener('click', () => {
+    document.getElementById('activityInput').value = '';
+    hasGenerated = false;
+    console.log("Clear - Text cleared, ready for new recording");
+  });
 
-document.getElementById('generate').addEventListener('click', async () => {
-  if (hasGenerated) {
-    console.log("Generate skipped - Image already generated");
-    alert("Image already generated. Use Clear to start over.");
-    return;
-  }
-
-  const mood = document.getElementById('activityInput').value;
-  let style = document.getElementById('styleSelect').value;
-  const image = document.getElementById('generatedImage');
-  const thinking = document.getElementById('thinking');
-
-  if (!mood) {
-    console.warn("Generate - No mood text");
-    alert("Please record some audio first!");
-    return;
-  }
-  if (style === 'none') {
-    console.warn("Generate - No style selected");
-    alert("Please select an art style!");
-    return;
-  }
-
-  console.log("Generating - Mood:", mood, "Style:", style);
-  startGeneratingDots();
-  thinking.style.display = 'block';
-
-  try {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 20000);
-    const res = await fetch('https://mood-into-art-backend.onrender.com/generate', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ prompt: `${mood} in ${style} style` }),
-      signal: controller.signal
-    });
-    clearTimeout(timeout);
-
-    const data = await res.json();
-    console.log("Response:", data);
-    if (data.image) {
-      image.src = `data:image/png;base64,${data.image}`;
-      image.style.display = 'block';
-      hasGenerated = true;
-
-      const history = document.getElementById('moodHistory');
-      const entry = document.createElement('div');
-      entry.className = 'history-entry';
-
-      const text = document.createElement('span');
-      text.textContent = `${new Date().toLocaleString()} — ${mood} [${style}]`;
-      entry.appendChild(text);
-
-      const del = document.createElement('button');
-      del.textContent = 'Delete';
-      del.addEventListener('click', () => history.removeChild(entry));
-      entry.appendChild(del);
-
-      history.prepend(entry);
-    } else {
-      console.warn("No image in response");
-      alert("No image received from server");
+  // Generate Image button
+  document.getElementById('generate').addEventListener('click', async () => {
+    if (hasGenerated) {
+      console.log("Generate skipped - Image already generated");
+      alert("Image already generated. Use Clear to start over.");
+      return;
     }
-  } catch (err) {
-    console.error('Error generating image:', err);
-    alert("Failed to generate image. Check your internet or try again.");
-  } finally {
-    stopThinkingText();
-  }
+
+    const mood = document.getElementById('activityInput').value;
+    let style = document.getElementById('styleSelect').value;
+    const image = document.getElementById('generatedImage');
+    const thinking = document.getElementById('thinking');
+
+    if (!mood) {
+      console.warn("Generate - No mood text");
+      alert("Please record some audio first!");
+      return;
+    }
+    if (style === 'none') {
+      console.warn("Generate - No style selected");
+      alert("Please select an art style!");
+      return;
+    }
+
+    console.log("Generating - Mood:", mood, "Style:", style);
+    startGeneratingDots();
+    thinking.style.display = 'block';
+
+    try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 20000);
+      const res = await fetch('https://mood-into-art-backend.onrender.com/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ prompt: `${mood} in ${style} style` }),
+        signal: controller.signal
+      });
+      clearTimeout(timeout);
+
+      if (!res.ok) {
+        throw new Error(`HTTP error! Status: ${res.status}`);
+      }
+
+      const data = await res.json();
+      console.log("Response:", data);
+      if (data.image) {
+        image.src = `data:image/png;base64,${data.image}`;
+        image.style.display = 'block';
+        hasGenerated = true;
+
+        const history = document.getElementById('moodHistory');
+        const entry = document.createElement('div');
+        entry.className = 'history-entry';
+
+        const text = document.createElement('span');
+        text.textContent = `${new Date().toLocaleString()} — ${mood} [${style}]`;
+        entry.appendChild(text);
+
+        const del = document.createElement('button');
+        del.textContent = 'Delete';
+        del.addEventListener('click', () => history.removeChild(entry));
+        entry.appendChild(del);
+
+        history.prepend(entry);
+      } else {
+        console.warn("No image in response");
+        alert("No image received from server");
+      }
+    } catch (err) {
+      console.error('Error generating image:', err);
+      alert("Failed to generate image. Check your internet or try again.");
+    } finally {
+      stopThinkingText();
+    }
+  });
 });
