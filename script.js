@@ -97,6 +97,7 @@ function setupWebSpeechAPI() {
   recognition.onresult = event => {
     const transcript = Array.from(event.results).map(r => r[0].transcript).join('');
     document.getElementById('activityInput').value = transcript;
+    transcriptBuffer = transcript; // Keep in sync for auto-generate
   };
 
   recognition.onerror = err => {
@@ -206,6 +207,49 @@ function triggerImageGeneration() {
   document.getElementById('generate').click();
 }
 
+// === Button bindings ===
 document.getElementById('startVoice').addEventListener('click', () => {
   isRecording ? stopRecording() : startRecording();
+});
+
+document.getElementById('redo').addEventListener('click', () => {
+  stopRecording();
+  document.getElementById('activityInput').value = '';
+  document.getElementById('styleSelect').value = 'none';
+  const image = document.getElementById('generatedImage');
+  image.src = '';
+  image.style.display = 'none';
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+});
+
+document.getElementById('generate').addEventListener('click', async () => {
+  const mood = document.getElementById('activityInput').value;
+  const style = document.getElementById('styleSelect').value;
+  const image = document.getElementById('generatedImage');
+  const thinking = document.getElementById('thinking');
+  if (!mood || style === 'none') return;
+
+  thinking.style.display = 'block';
+  thinking.textContent = 'Generating...';
+
+  try {
+    const res = await fetch('https://mood-into-art-backend.onrender.com/generate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ prompt: `${mood} in ${style} style` })
+    });
+
+    const data = await res.json();
+    if (data.image) {
+      image.src = `data:image/png;base64,${data.image}`;
+      image.style.display = 'block';
+    } else {
+      alert("No image received");
+    }
+  } catch (err) {
+    console.error('Error generating image:', err);
+    alert("Failed to generate image.");
+  } finally {
+    thinking.style.display = 'none';
+  }
 });
